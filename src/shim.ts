@@ -1,0 +1,63 @@
+/**
+ * The shim binding (T008, F120-FR-011; research.md R6 — the G-A gate holds:
+ * the kit is imported from the pinned tarball).
+ *
+ * The shipped shim is the kit's `shimScript()` UNMODIFIED, with dsh options:
+ * `bundledCliSegments: []` removes Claude's bundled-CLI step, and the header
+ * lines name the two-step resolution order of F120-FR-011 — `SPECSTRIDE_BIN`,
+ * then the search path; there is no third place, this package does not carry
+ * the CLI — plus the install command, version-inlined at build from the
+ * pinned engine release (F120-FR-022).
+ *
+ * The kit script's published-package step is inert by construction: the dsh
+ * manifest declares no `bin["specstride"]` key (its bins are
+ * `specstride-host-dsh` and `specstride-dsh`), so `publishedBin()` always
+ * yields null. A build check asserts that, keeping the step dead.
+ */
+import {
+  INSTALL_COMMAND,
+  shimScript,
+  type ShimScriptOptions,
+} from "@specstride/host-kit/shim";
+
+/**
+ * The install command with the version of the pinned engine release inlined
+ * (F120-FR-022). The kit's `INSTALL_COMMAND` constant carries a placeholder
+ * version (`npm install -g specstride@0.0.0`); the build passes the manifest's
+ * `specstride.engineVersion`. The shim PRINTS the command and never runs it.
+ */
+export function dshInstallCommand(engineVersion: string): string {
+  return `npm install -g specstride@${engineVersion}`;
+}
+
+/**
+ * The header lines the shipped shim carries: what generated the file, for
+ * which host, and the two-step resolution order of F120-FR-011 with the
+ * install command.
+ */
+export function dshShimHeaderLines(engineVersion: string): readonly string[] {
+  return Object.freeze([
+    "// bin/specstride.mjs — the Specstride shim of @specstride/host-dsh (specs/120-host-dsh).",
+    "// Generated at build by scripts/build.ts from @specstride/host-kit/shim (shimScript), unmodified.",
+    "// Resolution order (F120-FR-011): SPECSTRIDE_BIN, then the search path — no third place;",
+    "// this package does not carry the CLI. It fetches, installs and updates nothing.",
+    `// On a missing CLI it prints: ${dshInstallCommand(engineVersion)}`,
+    `// (the kit's placeholder constant reads: ${INSTALL_COMMAND}).`,
+  ]);
+}
+
+/** The dsh options of `shimScript()`. */
+export function dshShimOptions(engineVersion: string): ShimScriptOptions {
+  return {
+    headerLines: dshShimHeaderLines(engineVersion),
+    bundledCliSegments: [],
+    // From bin/ up to the package root: the published-package lookup reads the
+    // manifest one directory above bin/, and finds no `bin["specstride"]` key.
+    packageRootSegments: [".."],
+  };
+}
+
+/** The shipped shim text, rendered by the kit with the dsh options. */
+export function renderShimScript(engineVersion: string): string {
+  return shimScript(dshShimOptions(engineVersion));
+}
