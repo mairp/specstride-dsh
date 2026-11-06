@@ -26,6 +26,9 @@ import { dshProfile, dshSpellings } from "../src/profile.ts";
 import { insertDshFrontmatter, assertDshFrontmatter } from "../src/frontmatter.ts";
 import { renderShimScript } from "../src/shim.ts";
 import { dshSkillSetHost } from "../src/skills.ts";
+import { INSTALLS_OR_UPDATES } from "@specstride/host-kit";
+import { dshDoctorAppendixLines } from "../src/runtime-notes.ts";
+import { dshInstallCommand } from "../src/shim.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fail = (message: string): never => {
@@ -95,7 +98,17 @@ for (const artifact of artifacts) {
   if (logicalId === undefined) fail(`unattributed artifact ${artifact.path}`);
   const source = host.sources.find((s: SkillSource) => s.logicalId === logicalId)!;
 
-  const composed = insertDshFrontmatter(logicalId, artifact.content);
+  // The doctor carries the generated host-checks appendix (T021), built from
+  // the check table of contracts/doctor-host-checks.md, appended to the kit
+  // body BEFORE the budget check so the appendix is paid out of the budget.
+  const content =
+    logicalId === "doctor"
+      ? `${artifact.content}${dshDoctorAppendixLines(
+          join(ROOT, "specs", "120-host-dsh", "contracts", "doctor-host-checks.md"),
+          dshInstallCommand(engineVersion),
+        ).join("\n")}\n`
+      : artifact.content;
+  const composed = insertDshFrontmatter(logicalId, content);
   assertDshFrontmatter(composed, artifact.path); // fails the build, naming the artifact
 
   const bytes = Buffer.byteLength(composed, "utf8");
@@ -126,12 +139,23 @@ for (const artifact of artifacts) {
   });
 }
 
-// The doctor body carries no dsh appendix yet — that lands with T021.
+// The doctor (skill and command) installs and updates nothing — the kit
+// declares it, and the build refuses to ship a doctor that would not.
+if (INSTALLS_OR_UPDATES !== false) {
+  fail("the kit's INSTALLS_OR_UPDATES is not false — the doctor must install and update nothing");
+}
+
+// The doctor body carries the generated host-checks appendix (T021), and its
+// frontmatter keeps `specstride-doctor` out of every model catalog while
+// `/specstride-doctor` still runs (F120-FR-002, F120-FR-016).
 const doctorFile = written.find((skill) => skill.path === "specstride-doctor/SKILL.md");
 if (doctorFile !== undefined) {
   const text = readFileSync(join(skillsDirectory, doctorFile.path), "utf8");
-  if (text.includes("specstride-host-dsh doctor")) {
-    fail(`${doctorFile.path} carries the doctor appendix before T021`);
+  if (!text.includes("specstride-host-dsh doctor")) {
+    fail(`${doctorFile.path} carries no host-checks appendix (T021)`);
+  }
+  if (!/disable-model-invocation: true/.test(text) || !/user-invocable: true/.test(text)) {
+    fail(`${doctorFile.path}: the doctor skill must stay user-invocable and out of the model catalogs (F120-FR-002)`);
   }
 }
 

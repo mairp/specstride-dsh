@@ -44,7 +44,6 @@ test("a subcommand that is not yet wired names its task and exits non-zero", () 
   for (const [subcommand, task] of [
     ["install", "T026"],
     ["uninstall", "T027"],
-    ["doctor", "T021"],
     ["eval", "T031"],
   ] as const) {
     const result = run([subcommand]);
@@ -56,10 +55,19 @@ test("a subcommand that is not yet wired names its task and exits non-zero", () 
   }
 });
 
-test("dispatch returns the exit codes the same way", () => {
-  assert.equal(dispatch(["node", "cli", "frobnicate"]), 2);
-  assert.equal(dispatch(["node", "cli", "doctor"]), 3);
-  assert.equal(dispatch(["node", "cli"]), 2);
+test("dispatch returns the exit codes the same way", async () => {
+  assert.equal(await dispatch(["node", "cli", "frobnicate"]), 2);
+  assert.equal(await dispatch(["node", "cli"]), 2);
+});
+
+test("the doctor subcommand is wired to the runner of T020 (exit per DOCTOR_EXITS)", async () => {
+  const result = run(["doctor"]);
+  const { DOCTOR_EXIT_CODES } = await import("@specstride/host-kit");
+  assert.ok(
+    (DOCTOR_EXIT_CODES as readonly number[]).includes(result.code),
+    `exit ${result.code} is one of the kit's doctor exits`,
+  );
+  assert.match(result.stdout, /host\.cli-found/);
 });
 
 test("the dispatcher runs standalone with a non-zero exit on an unknown subcommand", () => {

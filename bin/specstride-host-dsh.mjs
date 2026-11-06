@@ -7,7 +7,7 @@
  * its task and exits non-zero. An unknown subcommand refuses with one line.
  */
 
-const WIRED = new Set();
+const WIRED = new Set(["doctor"]);
 
 const TASK_OF = {
   install: "T026",
@@ -16,7 +16,7 @@ const TASK_OF = {
   eval: "T031",
 };
 
-export function dispatch(argv) {
+export async function dispatch(argv) {
   const args = argv.slice(2);
   const [subcommand] = args;
   if (subcommand === undefined || subcommand === "--help" || subcommand === "-h") {
@@ -37,11 +37,15 @@ export function dispatch(argv) {
     );
     return 3;
   }
-  // Wired bodies are dispatched by the later phases; none is wired today.
+  if (subcommand === "doctor") {
+    const { doctorMain } = await import("../src/doctor.ts");
+    return doctorMain(args.slice(1));
+  }
+  // install/uninstall/eval are wired by their own tasks (T026, T027, T031).
   console.error(`specstride-host-dsh ${subcommand}: no handler registered`);
   return 1;
 }
 
 if (process.argv[1] === new URL(import.meta.url, "file://").pathname) {
-  process.exit(dispatch(process.argv));
+  process.exit(await dispatch(process.argv));
 }

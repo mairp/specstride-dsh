@@ -54,12 +54,14 @@ test("bodies contain no Claude host leakage", () => {
   }
 });
 
-test("the doctor body carries no appendix yet (that lands with T021)", () => {
+test("the doctor body carries the generated host-checks appendix (T021)", () => {
   const skills = builtSkills();
   assert.ok(
-    !skills["specstride-doctor"].includes("specstride-host-dsh doctor"),
-    "no host-checks appendix before T021",
+    skills["specstride-doctor"].includes("specstride-host-dsh doctor"),
+    "the host-checks appendix is in the composed doctor body",
   );
+  assert.match(skills["specstride-doctor"], /disable-model-invocation: true/);
+  assert.match(skills["specstride-doctor"], /user-invocable: true/);
 });
 
 test("the run and reverse bodies carry the generated dsh runtime section", () => {
