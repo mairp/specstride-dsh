@@ -4,6 +4,7 @@
 !.mixture-of-loops/**/
 !.mixture-of-loops/**/launch-contract.json
 !.mixture-of-loops/**/verification-commands.json
+!.mixture-of-loops/**/health-check.sh
 .mixture-of-loops/**/generated/
 .mixture-of-loops/**/runs/
 
