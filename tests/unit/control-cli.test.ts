@@ -46,15 +46,30 @@ test("an unknown subcommand refuses with one line, non-zero", () => {
   assert.match(lines[0], /install, uninstall, doctor, eval/);
 });
 
-test("a subcommand that is not yet wired names its task and exits non-zero", () => {
-  // eval stays unwired until T031; install/uninstall are wired (T026–T027)
-  // to the installer/uninstaller of src/installer.ts.
+test("eval is wired to the paid lane of T031 and starts nothing on its own", () => {
+  // The person-started paid lane: without a mode it prints one line naming
+  // the paid lane (F120-FR-024) and exits non-zero — nothing is started.
   const result = run(["eval"]);
-  assert.notEqual(result.code, 0, "eval is not wired yet");
+  assert.notEqual(result.code, 0, "eval with no mode starts nothing");
   const lines = result.stderr.trim().split("\n");
   assert.equal(lines.length, 1, "eval: exactly one line");
-  assert.match(lines[0], /T031/);
-  assert.match(lines[0], /specs\/120-host-dsh/);
+  assert.match(lines[0], /F120-FR-024/);
+  assert.match(lines[0], /paid lane/);
+  // A run whose configuration names no model refuses before any call.
+  const refusal = run(["eval", "suite-run"]);
+  assert.notEqual(refusal.code, 0);
+  assert.match(refusal.stderr, /RunRefusedError/);
+});
+
+test("the eval release-gate mode reads records only and fails on an empty log", () => {
+  const home = mkdtempSync(join(tmpdir(), "dsh-cli-gate-"));
+  try {
+    const result = run(["eval", "release-gate", "--run-log", join(home, "no-log.jsonl")]);
+    assert.equal(result.code, 1, "an empty log fails the gate");
+    assert.match(result.stdout, /F120-FR-024/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test("install and uninstall are wired to src/installer.ts (T026–T027)", () => {

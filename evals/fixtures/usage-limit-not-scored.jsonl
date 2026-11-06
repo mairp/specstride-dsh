@@ -1,0 +1,5 @@
+{"type":"session-start","profile":"headless","cwd":"/tmp/eval-case"}
+{"type":"message","role":"user","text":"run specstride on the comment 'add rate limiting'"}
+{"type":"tool/call","tool":"skill","input":{"name":"specstride-run","args":"add rate limiting"}}
+{"type":"tool/result","tool":"skill","output":"skill specstride-run loaded"}
+{"type":"session-end","exitCode":0,"marker":"usage-limit"}

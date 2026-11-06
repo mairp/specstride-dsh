@@ -1,0 +1,5 @@
+{"type":"session-start","profile":"headless","cwd":"/tmp/eval-case"}
+{"type":"message","role":"user","text":"/specstride-reverse recover the spec of this module"}
+{"type":"message","role":"system","text":"<skill_content name=\"specstride-reverse\">\nReverse-engineer the spec from the sources.\n</skill_content>"}
+{"type":"message","role":"assistant","text":"Reading the sources for the reverse skill."}
+{"type":"session-end","exitCode":0}

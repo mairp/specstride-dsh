@@ -1,0 +1,17 @@
+{
+  "skill": "specstride-run",
+  "cases": [
+    { "id": "run-pos-1", "kind": "positive", "prompt": "run specstride on the comment 'add rate limiting'", "expected": "specstride-run", "tools": ["skill"] },
+    { "id": "run-pos-2", "kind": "positive", "prompt": "start a specstride run for this repo with the comment 'fix the flaky login test'", "expected": "specstride-run", "tools": ["skill"] },
+    { "id": "run-pos-3", "kind": "positive", "prompt": "launch specstride with the comment 'refactor the auth module' and supervise it for me", "expected": "specstride-run", "tools": ["skill"] },
+    { "id": "run-pos-4", "kind": "positive", "prompt": "I want a full specstride run here; the comment is 'migrate the build to ESM'", "expected": "specstride-run", "tools": ["skill"] },
+    { "id": "run-pos-5", "kind": "positive", "prompt": "kick off specstride on 'bump the dependency pins' and show me the digest", "expected": "specstride-run", "tools": ["skill"] },
+    { "id": "run-pos-6", "kind": "positive", "prompt": "please run specstride over the comment 'extract the payment client into its own package'", "expected": "specstride-run", "tools": ["skill"] },
+    { "id": "run-neg-pair-1", "kind": "cross-skill", "prompt": "reverse-engineer the spec of this repository from its sources", "expected": "specstride-reverse", "tools": ["skill"], "confusablePair": "run-vs-reverse" },
+    { "id": "run-neg-pair-2", "kind": "cross-skill", "prompt": "recover the spec of the existing module without running anything", "expected": "specstride-reverse", "tools": ["skill"], "confusablePair": "run-vs-reverse" },
+    { "id": "run-neg-pair-3", "kind": "cross-skill", "prompt": "build the spec backward from the code; do not launch a run", "expected": "specstride-reverse", "tools": ["skill"], "confusablePair": "run-vs-reverse" },
+    { "id": "run-neg-1", "kind": "negative", "prompt": "summarize this repository's README for me", "expected": null, "tools": ["read", "grep"] },
+    { "id": "run-neg-2", "kind": "negative", "prompt": "explain this stack trace from the CI log", "expected": null, "tools": ["read"] },
+    { "id": "run-neg-3", "kind": "negative", "prompt": "write a unit test for the YAML parser", "expected": null, "tools": ["read", "edit"] }
+  ]
+}

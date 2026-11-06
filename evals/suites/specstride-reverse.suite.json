@@ -1,0 +1,17 @@
+{
+  "skill": "specstride-reverse",
+  "cases": [
+    { "id": "rev-pos-1", "kind": "positive", "prompt": "reverse-engineer the spec of this repository from its sources", "expected": "specstride-reverse", "tools": ["skill"] },
+    { "id": "rev-pos-2", "kind": "positive", "prompt": "recover the spec of the payments module without running anything", "expected": "specstride-reverse", "tools": ["skill"] },
+    { "id": "rev-pos-3", "kind": "positive", "prompt": "derive the specification of this codebase backward from the code", "expected": "specstride-reverse", "tools": ["skill"] },
+    { "id": "rev-pos-4", "kind": "positive", "prompt": "reconstruct the spec kit artifacts for this tree; read only, launch nothing", "expected": "specstride-reverse", "tools": ["skill"] },
+    { "id": "rev-pos-5", "kind": "positive", "prompt": "what would the spec of this project look like? work it out from the sources, no run", "expected": "specstride-reverse", "tools": ["skill"] },
+    { "id": "rev-pos-6", "kind": "positive", "prompt": "produce the inventory and plan of the existing sources and stop there", "expected": "specstride-reverse", "tools": ["skill"] },
+    { "id": "rev-neg-pair-1", "kind": "cross-skill", "prompt": "run specstride on the comment 'add rate limiting'", "expected": "specstride-run", "tools": ["skill"], "confusablePair": "run-vs-reverse" },
+    { "id": "rev-neg-pair-2", "kind": "cross-skill", "prompt": "start a specstride run with the comment 'fix the flaky login test'", "expected": "specstride-run", "tools": ["skill"], "confusablePair": "run-vs-reverse" },
+    { "id": "rev-neg-pair-3", "kind": "cross-skill", "prompt": "launch specstride here on 'refactor the auth module'", "expected": "specstride-run", "tools": ["skill"], "confusablePair": "run-vs-reverse" },
+    { "id": "rev-neg-1", "kind": "negative", "prompt": "git status please", "expected": null, "tools": ["bash"] },
+    { "id": "rev-neg-2", "kind": "negative", "prompt": "explain the build failure in ci.log", "expected": null, "tools": ["read"] },
+    { "id": "rev-neg-3", "kind": "negative", "prompt": "rename the variable count to attemptCount across the package", "expected": null, "tools": ["read", "edit"] }
+  ]
+}

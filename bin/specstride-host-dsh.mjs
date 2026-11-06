@@ -3,12 +3,13 @@
  * The control CLI of the dsh host (T010, research.md R1): bin
  * `specstride-host-dsh`. Thin arg parsing and exit-code plumbing only —
  * `install`/`uninstall` run the installer/uninstaller of `src/installer.ts`
- * (T026–T027), `doctor` the runner of `src/doctor.ts` (T021), `eval` lands
- * with T031 and prints ONE line naming its task. An unknown subcommand
- * refuses with one line.
+ * (T026–T027), `doctor` the runner of `src/doctor.ts` (T021), `eval` the
+ * person-started paid lane of `src/evals/paid-lane.ts` (T031) — a mode that
+ * spends refuses before any call without a model (`RunRefusedError`). An
+ * unknown subcommand refuses with one line.
  */
 
-const WIRED = new Set(["install", "uninstall", "doctor"]);
+const WIRED = new Set(["install", "uninstall", "doctor", "eval"]);
 
 const TASK_OF = {
   install: "T026",
@@ -50,7 +51,10 @@ export async function dispatch(argv) {
     const { uninstallMain } = await import("../src/installer.ts");
     return uninstallMain(process.env, args.slice(1));
   }
-  // eval is wired by its own task (T031).
+  if (subcommand === "eval") {
+    const { evalMain } = await import("../src/evals/paid-lane.ts");
+    return evalMain(args.slice(1));
+  }
   console.error(`specstride-host-dsh ${subcommand}: no handler registered`);
   return 1;
 }

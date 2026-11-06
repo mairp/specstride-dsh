@@ -1,0 +1,12 @@
+{
+  "toolRestriction": {
+    "allowedTools": [],
+    "launchImpossible": true,
+    "reason": "the tool restriction of F120-FR-024 is environmental: the hermetic PATH of a case carries a stub specstride whose launch refuses (rc.8 shows no tool-restriction flag; src/host-facts.ts HF-15); no case can launch a run even if a model tries"
+  },
+  "graders": {
+    "invoked-skill": { "kind": "free", "method": "grade the session log for the expected skill load", "reads": "the JSONL session log resolved from the hermetic DSH_HOME (HF-08)", "passes": "a tool/call of tool skill names the expected skill, or a <skill_content name=\"...\"> of it is injected", "modelJudge": false },
+    "no-skill-invoked": { "kind": "free", "method": "grade the session log for an absent skill load", "reads": "the JSONL session log resolved from the hermetic DSH_HOME (HF-08)", "passes": "no skill tool call and no skill-content injection appear", "modelJudge": false },
+    "no-launch": { "kind": "free", "method": "read the recorded tool calls of the run", "reads": "the recorded tool calls (stubSuiteRunner result or the session log)", "passes": "no recorded tool call launches a specstride run", "modelJudge": false }
+  }
+}
