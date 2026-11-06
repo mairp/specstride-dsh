@@ -6,18 +6,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dispatch } from "../../bin/specstride-host-dsh.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CLI = join(ROOT, "bin", "specstride-host-dsh.mjs");
 
-function run(args: string[]): { code: number; stdout: string; stderr: string } {
+function run(
+  args: string[],
+  env: Record<string, string> = {},
+): { code: number; stdout: string; stderr: string } {
   try {
     const stdout = execFileSync(process.execPath, [CLI, ...args], {
       cwd: ROOT,
       encoding: "utf8",
+      env: { ...process.env, ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
     return { code: 0, stdout, stderr: "" };
@@ -41,17 +47,28 @@ test("an unknown subcommand refuses with one line, non-zero", () => {
 });
 
 test("a subcommand that is not yet wired names its task and exits non-zero", () => {
-  for (const [subcommand, task] of [
-    ["install", "T026"],
-    ["uninstall", "T027"],
-    ["eval", "T031"],
-  ] as const) {
-    const result = run([subcommand]);
-    assert.notEqual(result.code, 0, `${subcommand} is not wired yet`);
-    const lines = result.stderr.trim().split("\n");
-    assert.equal(lines.length, 1, `${subcommand}: exactly one line`);
-    assert.match(lines[0], new RegExp(task));
-    assert.match(lines[0], /specs\/120-host-dsh/);
+  // eval stays unwired until T031; install/uninstall are wired (T026–T027)
+  // to the installer/uninstaller of src/installer.ts.
+  const result = run(["eval"]);
+  assert.notEqual(result.code, 0, "eval is not wired yet");
+  const lines = result.stderr.trim().split("\n");
+  assert.equal(lines.length, 1, "eval: exactly one line");
+  assert.match(lines[0], /T031/);
+  assert.match(lines[0], /specs\/120-host-dsh/);
+});
+
+test("install and uninstall are wired to src/installer.ts (T026–T027)", () => {
+  const home = mkdtempSync(join(tmpdir(), "dsh-cli-wired-"));
+  try {
+    const env = { DSH_HOME: home, PROJECT_ROOT: home, HOME: home };
+    const installed = run(["install"], env);
+    assert.equal(installed.code, 0, installed.stderr);
+    assert.ok(existsSync(join(home, "skills", ".specstride-host-dsh-install.json")));
+    const removed = run(["uninstall"], env);
+    assert.equal(removed.code, 0, removed.stderr);
+    assert.equal(existsSync(join(home, "skills")), false);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
   }
 });
 

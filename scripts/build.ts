@@ -11,7 +11,7 @@
  * Every failure stops the build naming the offending artifact. The build
  * calls no model and no paid or external API (F120-FR-025).
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -173,4 +173,17 @@ for (const skill of written) {
   console.log(`wrote ${skill.path} — ${skill.bytes} bytes, sha256 ${skill.hash}`);
 }
 console.log(`wrote bin/specstride.mjs — ${Buffer.byteLength(shim, "utf8")} bytes`);
+
+// The release is built by this script, never by hand (threats T-43/T-45):
+// the shipped `files` are exactly what this script wrote, and the skeleton
+// placeholders leave with the first real artifacts. The installer (T026)
+// ships this rendered output verbatim into the chosen skill root and carries
+// the install record with `specstride.engineVersion` verbatim (F120-FR-022);
+// the npm publish itself stays the owner's — nothing here publishes.
+for (const keeper of [join(binDirectory, ".gitkeep"), join(skillsDirectory, ".gitkeep")]) {
+  if (existsSync(keeper)) rmSync(keeper);
+}
+console.log(
+  `release facts: engine ${engineVersion} (core-pin.json) — built by scripts/build.ts; install record carries it verbatim; publish stays the owner's`,
+);
 console.log(`build ok: ${written.length} skill(s), shim rendered, checks passed`);

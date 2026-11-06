@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
  * The control CLI of the dsh host (T010, research.md R1): bin
- * `specstride-host-dsh`. Thin arg parsing and exit-code plumbing only — the
- * bodies of `install`/`uninstall` land with T026–T027, `doctor` with T021,
- * `eval` with T031. A subcommand that is not yet wired prints ONE line naming
- * its task and exits non-zero. An unknown subcommand refuses with one line.
+ * `specstride-host-dsh`. Thin arg parsing and exit-code plumbing only —
+ * `install`/`uninstall` run the installer/uninstaller of `src/installer.ts`
+ * (T026–T027), `doctor` the runner of `src/doctor.ts` (T021), `eval` lands
+ * with T031 and prints ONE line naming its task. An unknown subcommand
+ * refuses with one line.
  */
 
-const WIRED = new Set(["doctor"]);
+const WIRED = new Set(["install", "uninstall", "doctor"]);
 
 const TASK_OF = {
   install: "T026",
@@ -41,7 +42,15 @@ export async function dispatch(argv) {
     const { doctorMain } = await import("../src/doctor.ts");
     return doctorMain(args.slice(1));
   }
-  // install/uninstall/eval are wired by their own tasks (T026, T027, T031).
+  if (subcommand === "install") {
+    const { installMain } = await import("../src/installer.ts");
+    return installMain(process.env, args.slice(1));
+  }
+  if (subcommand === "uninstall") {
+    const { uninstallMain } = await import("../src/installer.ts");
+    return uninstallMain(process.env, args.slice(1));
+  }
+  // eval is wired by its own task (T031).
   console.error(`specstride-host-dsh ${subcommand}: no handler registered`);
   return 1;
 }
