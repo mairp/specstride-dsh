@@ -64,7 +64,7 @@ const PROHIBITION_TRACEABILITY: Readonly<
 });
 
 /** The five shared sections every host source takes, over the dsh figures. */
-function dshSections() {
+export function dshSkillSections() {
   const judgment = judgmentSectionOf({ delegatesToAHarness: false });
   const supervision = supervisionSectionOfDsh();
   const audienceNotice = audienceNoticeSectionOf({
@@ -78,6 +78,16 @@ function dshSections() {
   );
   return { judgment, supervision, audienceNotice, dataFraming, prohibitions };
 }
+
+/**
+ * The judgment exchange on dsh (F120-FR-008, R4 Q2): the host HAS a model
+ * (`model: true` of `src/describe.ts`), so the judgment is never delegated
+ * to a harness; batches may go to a dsh subagent where the count is large
+ * (the kit's own clause, carried by `judgmentSectionOf(false)`), never the
+ * exchange as a whole.
+ */
+export const DSH_JUDGMENT_DELEGATES_TO_A_HARNESS = false;
+export const DSH_JUDGMENT_MAY_DELEGATE_BATCHES_TO_A_SUBAGENT = true;
 
 /**
  * The supervision section's dsh figures (F120-FR-026): one cycle 150 tokens,
@@ -114,7 +124,7 @@ export const dshBodyBudgets = bodyBudgetsOf({
 /** The kit body of the run skill, under the dsh sections and budgets. */
 export function dshRunKitBody(): string {
   return runSkillBodyOf({
-    sections: dshSections(),
+    sections: dshSkillSections(),
     oldModeNamesLine:
       "Modes: `run` (the default) and `dry-run`; there is no predecessor skill on this host — a dry run derives, validates, prints the plan and launches nothing (F120-FR-006).",
   });
@@ -127,7 +137,7 @@ export function dshRunBody(): string {
 
 /** The composed reverse body, likewise. */
 export function dshReverseKitBody(): string {
-  return reverseSkillBodyOf({ sections: dshSections() });
+  return reverseSkillBodyOf({ sections: dshSkillSections() });
 }
 
 export function dshReverseBody(): string {
@@ -163,13 +173,13 @@ export function dshSkillSourceOf(logicalId: string): SkillSource {
   const kitSource =
     logicalId === "specstride-run"
       ? runSkillSourceOf({
-          sections: dshSections(),
+          sections: dshSkillSections(),
           oldModeNamesLine:
             "Modes: `run` (the default) and `dry-run`; there is no predecessor skill on this host — a dry run derives, validates, prints the plan and launches nothing (F120-FR-006).",
           budgets: budgetsFor(logicalId),
         })
       : logicalId === "specstride-reverse"
-        ? reverseSkillSourceOf({ sections: dshSections(), budgets: budgetsFor(logicalId) })
+        ? reverseSkillSourceOf({ sections: dshSkillSections(), budgets: budgetsFor(logicalId) })
         : doctorSkillSourceOf(budgetsFor(logicalId));
   return { ...kitSource, body };
 }
