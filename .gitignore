@@ -1,0 +1,15 @@
+# Written by the mixture-of-loops skill (2026-11-06): keep generated pipeline
+# artifacts out of git status; the contract and its verification plan stay committable.
+.mixture-of-loops/**
+!.mixture-of-loops/**/
+!.mixture-of-loops/**/launch-contract.json
+!.mixture-of-loops/**/verification-commands.json
+.mixture-of-loops/**/generated/
+.mixture-of-loops/**/runs/
+
+# The split (phase 5, 2026-11-11): pipeline state and Spec Kit scaffolding stay
+# local, as they are in the engine repository. The run state under .specstride/
+# holds campaign files that must not enter git history (rule 6 of the split).
+.specstride/
+.specstride*/
+.specify/
