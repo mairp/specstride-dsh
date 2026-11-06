@@ -29,12 +29,16 @@ import {
   RUN_SKILL_DESCRIPTION,
   runSkillBodyOf,
   runSkillSourceOf,
+  supervisionBudgetTokensOf,
   supervisionSectionOf,
+  waitRunsInTheBackgroundOf,
+  type SupervisionFigures,
   type SkillSetHost,
   type SkillSource,
 } from "@specstride/host-kit";
 import { dshProfile, dshTokenBudgets } from "./profile.ts";
 import { DSH_VERSION_PIN } from "./host-facts.ts";
+import { dshCapabilityDeclarations } from "./describe.ts";
 import { dshRuntimeSectionFor } from "./runtime-notes.ts";
 
 /** The logical ids of the set, in the order the build writes them. */
@@ -90,18 +94,38 @@ export const DSH_JUDGMENT_DELEGATES_TO_A_HARNESS = false;
 export const DSH_JUDGMENT_MAY_DELEGATE_BATCHES_TO_A_SUBAGENT = true;
 
 /**
- * The supervision section's dsh figures (F120-FR-026): one cycle 150 tokens,
- * an unchanged cycle 0, a whole run's supervision 3,000 — and the wait MAY
- * run as a dsh background job while the session lives (F120-FR-013).
+ * The supervision section's dsh figures (F120-FR-010, F120-FR-026), read —
+ * never restated — from the kit's own two readers:
+ *  - `waitRunsInTheBackgroundOf` over the declarations `src/describe.ts`
+ *    makes: dsh declares the `background` capability present, so the wait
+ *    MAY run as a dsh background job while the session lives — the LAUNCH
+ *    may not (F120-FR-013, `src/runtime-notes.ts`).
+ *  - `supervisionBudgetTokensOf` for the owner of a relaunch the budget is
+ *    promised for (`root` of annex F §F.4): the whole run's supervision is
+ *    the 3,000 of F120-FR-026; one cycle is the 150 of the same table.
  */
-function supervisionSectionOfDsh(): readonly string[] {
-  // The kit's own builder writes the section over the figures; the dsh
-  // background primitive exists (dsh jobs, HF-06), so the wait may be a job.
-  return supervisionSectionOf({
-    backgroundPresent: true,
+export function dshSupervisionFigures(): SupervisionFigures {
+  const runBudget = supervisionBudgetTokensOf(
+    "root",
+    dshTokenBudgets["supervision-run"],
+  );
+  if (runBudget === null) {
+    // Unreachable for `root`, which the kit always promises for — but the
+    // host never interpolates a figure it did not read (Principle XVII).
+    throw new Error(
+      "F120-FR-026: the whole run's supervision budget is promised for no owner of a relaunch",
+    );
+  }
+  return {
+    backgroundPresent: waitRunsInTheBackgroundOf(dshCapabilityDeclarations()),
     cycleTokenBudget: dshTokenBudgets["supervision-cycle"],
-    runSupervisionTokenBudget: dshTokenBudgets["supervision-run"],
-  });
+    runSupervisionTokenBudget: runBudget,
+  };
+}
+
+/** The supervision section of the run and reverse bodies, over the dsh figures. */
+function supervisionSectionOfDsh(): readonly string[] {
+  return supervisionSectionOf(dshSupervisionFigures());
 }
 
 /** The body-budget check keyed by logical id, bound to the dsh tables. */

@@ -98,4 +98,5 @@ You hold no product logic, you author no spec, and the happy path needs no refer
 - The run survives the end of the dsh session because the engine detaches it at start, never because of a dsh job: dsh jobs are owned by the calling session and die with it.
 - Run every `specstride <cmd>` this skill spells through this package's shim, bin `specstride-dsh` — i.e. `specstride-dsh <cmd>` — never a `specstride` found by hand.
 - A supervision `wait` MAY run as a dsh background job while the session lives; losing it loses nothing, and a lost output is recovered by repeating the read.
+- When this skill is invoked again while a run lives or after one ended, read `specstride-dsh status` first and relay its one line, verbatim, before anything else: a live run is then supervised, and an ended run is followed by the digest, and the skill stops — no wait is spent on a run that already ended.
 - If the doctor found the state home not writable, the needed permission mode is `DSH_PERMISSION_MODE=danger-full-access` (or a writable root that includes the state home, where the installed dsh supports one): state that in one line, and change no setting yourself.

@@ -53,6 +53,13 @@ export const dshRuntimeLines: readonly RuntimeLine[] = Object.freeze([
     requirement: "F120-FR-013",
   },
   {
+    id: "dsh-status-first-on-reinvoke",
+    line:
+      "When this skill is invoked again while a run lives or after one ended, read `specstride-dsh status` first and relay its one line, verbatim, before anything else: a live run is then supervised, and an ended run is followed by the digest, and the skill stops — no wait is spent on a run that already ended.",
+    scope: "run",
+    requirement: "F120-FR-010",
+  },
+  {
     id: "dsh-state-home-not-writable",
     line:
       "If the doctor found the state home not writable, the needed permission mode is `DSH_PERMISSION_MODE=danger-full-access` (or a writable root that includes the state home, where the installed dsh supports one): state that in one line, and change no setting yourself.",
