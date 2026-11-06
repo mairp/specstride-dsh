@@ -13,3 +13,10 @@
 .specstride/
 .specstride*/
 .specify/
+
+# The pinned core (the split, phase 5): `core-pin.json` is committed, the
+# tarballs it vendored are not — a fresh clone re-pins against its own core.
+node_modules/
+vendor/core/
+tmp/
+.build/

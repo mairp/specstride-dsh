@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0",
+  "coreCommit": "59c7898b61710d38131e1d3fa7f3b428bf0c3050",
+  "packages": [
+    {
+      "name": "specstride",
+      "version": "0.1.0",
+      "file": "specstride-0.1.0.tgz",
+      "sha256": "0e193fab6a60e4a14107ab6b5fc0c317d9fa83943d527a8493e1bdaef314ce49"
+    },
+    {
+      "name": "@specstride/contracts",
+      "version": "0.1.0",
+      "file": "specstride-contracts-0.1.0.tgz",
+      "sha256": "a1e4eb1322d17bb35d6391987db32f59010f6159da41a2ed1f07baf61b31dc22"
+    },
+    {
+      "name": "@specstride/host-kit",
+      "version": "0.1.0",
+      "file": "specstride-host-kit-0.1.0.tgz",
+      "sha256": "3ca4a9ddb4dd278d0320adc97e358f6433ef4c2a0b1e22ef62022fe0586766e1"
+    },
+    {
+      "name": "@specstride/testkit",
+      "version": "0.1.0",
+      "file": "specstride-testkit-0.1.0.tgz",
+      "sha256": "3437d88b2ee9dac65b5f2947ba78a68f05374f2326d478566a85e00242240f8d"
+    }
+  ]
+}
