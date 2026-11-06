@@ -1,0 +1,50 @@
+# live-probe-dsh — probe 2 (rerun): detached survival THROUGH THE SKILL'S LAUNCH STEP (HF-09/HF-10)
+date: 2026-11-06T21:16:47Z  dsh: 0.1.0-rc.8  workspace: /tmp/probe120 (project-scope skills installed)
+session kind: dsh --profile headless, cwd /tmp/probe120, skills under /tmp/probe120/.dsh/skills (installed by specstride-host-dsh install --project)
+PATH carries the stub CLI + the shim symlink specstride-dsh; SPECSTRIDE_BIN names the stub; XDG_STATE_HOME=/tmp/probe120-state
+dsh-exit=0
+The launch step is done; the CLI printed:
+
+```
+started run=probe-120 pid=352680
+attach: specstride status run=probe-120
+```
+
+Stopping here as instructed — no supervision, no status read, no further skill steps.
+== session END: the headless dsh process exited (exit 0) after printing the launch outcome.
+== FRESH shell, after session end:
+2026-11-06T21:17:07Z
+$ ps -p 352680 -o pid,ppid,pgid,sid,stat,cmd
+    PID    PPID    PGID     SID STAT CMD
+ 352680       1  352680  352680 Ss   sleep 300
+$ cat /tmp/probe120-state/specstride/run-state.txt
+run-id=probe-120 pid=352680 started=2026-11-06T21:16:56Z
+args: --comment probe-120
+== re-check 3s later ==
+    PID    PPID    PGID     SID STAT CMD
+ 352680       1  352680  352680 Ss   sleep 300
+$ session log of the probe session (skill tool call naming specstride-run):
+log: /root/.dsh/sessions/--tmp-probe120--/session-ba99966a-81f0-42f2-b0d5-dd17173e9187/session.jsonl.zstd
+-rw------- 1 root root 24892 Nov  7 01:16 /root/.dsh/sessions/--tmp-probe120--/session-ba99966a-81f0-42f2-b0d5-dd17173e9187/session.jsonl.zstd
+== finding (HF-09): the run started THROUGH the skill's launch step (shim specstride-dsh, foreground)
+== SURVIVED the dsh session's end; its state line was written under the state home.
+== finding (HF-10): PGID/SID above are the child's own (setsid) — the session teardown did not kill it.
+== session-log grounding (the skill path, from the log itself)
+      1 "name":"specstride-run"
+specstride-dsh launch ... --comment 
+specstride-dsh launch ... --comment 
+specstride-dsh launch ... --comment 
+5
+== session-log proof of the SKILL PATH (from session-ba99966a, zstd-decompressed):
+- tool/call seq 186 class: skill tool with "name":"specstride-run" (1 occurrence)
+- tool/call seq 195: name=bash, arguments={"command":"specstride-dsh launch --comment \"probe-120\""} —
+  a FOREGROUND bash call through the shim; no run_in_background anywhere in the call
+  (the string run_in_background appears in the log only inside the injected skill text that
+  forbids it — 5 occurrences, all skill_content)
+- tool result: the shim forwarded to the stub CLI, which printed started run=probe-120 pid=352680
+== chain: dsh session -> skill specstride-run -> skill's launch step -> shim specstride-dsh
+   (foreground) -> stub CLI launch -> setsid sleeper + state line under the state home.
+== cleanup: the probe sleeper (pid 352680) was terminated by hand after the observations.
+== model cost: this session invoked glm-5.3-flash (probe 1 settled that dsh rc.8 allows no
+   model-free headless task), so the probe is PAID — F120-FR-024 rules; task name
+   live-probe-dsh in paidTaskNames (src/evals/paid-lane.ts).

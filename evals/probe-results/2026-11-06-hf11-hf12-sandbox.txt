@@ -1,0 +1,35 @@
+# live-probe-dsh — probe 4: sandbox writable roots (HF-11) + probe 5: detached child inherits the sandbox (HF-12)
+date: 2026-11-06T21:08:57Z  dsh: 0.1.0-rc.8
+workspace: /tmp/hf11-probe (session cwd); write target OUTSIDE it: /tmp/hf11-state/specstride/probe-write.txt
+
+== probe 4a: workspace-write (DSH_PERMISSION_MODE=workspace-write, headless = no approver)
+$ DSH_PERMISSION_MODE=workspace-write dsh --profile headless "…write…report…"
+WROTE yes
+exit=0
+target file present after run:
+total 4
+drwxr-xr-x 2 root root 60 Nov  7 01:09 .
+drwxr-xr-x 3 root root 60 Nov  7 01:08 ..
+-rw-r--r-- 1 root root 13 Nov  7 01:09 probe-write.txt
+
+== probe 4b: danger-full-access
+$ DSH_PERMISSION_MODE=danger-full-access dsh --profile headless "…"
+WROTE yes
+exit=0
+total 4
+drwxr-xr-x 2 root root 60 Nov  7 01:09 .
+drwxr-xr-x 3 root root 60 Nov  7 01:08 ..
+-rw-r--r-- 1 root root 13 Nov  7 01:09 probe-write.txt
+
+== probe 5 (HF-12): from a workspace-write session, a DETACHED child writes outside the workspace
+$ DSH_PERMISSION_MODE=workspace-write dsh --profile headless "setsid sh -c echo escaped >/tmp/hf11-state/specstride/escape.txt &"
+DONE
+exit=0
+escape file after run:
+escaped
+
+## finding (HF-11): on this installed rc.8 (root, Linux) the write OUTSIDE the workspace LANDED
+## under BOTH workspace-write (headless, no approver) and danger-full-access — the writable
+## roots include the state home; no sandbox denial was observed in either mode.
+## finding (HF-12): the detached child's write OUTSIDE the workspace LANDED — the detach escapes
+## (or the sandbox does not bind children on this host).

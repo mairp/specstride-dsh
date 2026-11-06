@@ -1,0 +1,24 @@
+# live-probe-dsh — probe 2+3: detached survival past session end (HF-09) + teardown/process group (HF-10)
+date: 2026-11-06T21:08:29Z  dsh: 0.1.0-rc.8
+deviation recorded: the session is a dsh --profile headless one-shot (its bash tool performs the
+detached start) rather than an interactive /specstride-run session; the stub run is the setsid
+sleeper itself. Session END = the headless process exiting after its one task.
+$ dsh --profile headless "Use your bash tool to run exactly: setsid sleep 300 </dev/null >/dev/null 2>&1 & echo DETACHED_PID=$! ; then print that line and stop."
+DETACHED_PID=306550
+exit=0
+
+## probe 3 step: inspect the detached child from a FRESH shell, after the session ended
+$ ps -p 306550 -o pid,ppid,pgid,sid,stat,cmd
+    PID    PPID    PGID     SID STAT CMD
+ 306550       1  306550  306550 Ss   sleep 300
+$ pgrep -a sleep | grep 306550 || true
+289919 sleep 300
+306550 sleep 300
+307351 bash -c P=/root/specstride-dsh/evals/probe-results/2026-11-06-hf09-hf10-detached-survival.txt { echo echo "## probe 3 step: inspect the detached child from a FRESH shell, after the session ended" echo '$ ps -p 306550 -o pid,ppid,pgid,sid,stat,cmd' } >> $P ps -p 306550 -o pid,ppid,pgid,sid,stat,cmd 2>&1 | tee -a $P { echo '$ pgrep -a sleep | grep 306550 || true' } >> $P pgrep -af 'sleep 300' | tee -a $P || true sleep 5 { echo "## re-check 5s later" } >> $P ps -p 306550 -o pid,ppid,pgid,sid,stat,cmd 2>&1 | tee -a $P { echo echo "## finding (HF-09): the detached child SURVIVED the dsh session's end (alive from a fresh shell)." echo "## finding (HF-10): observe PGID above ??? child runs in its own session/process group (setsid);" echo "## the session's teardown did not kill it." } >> $P kill 306550 2>/dev/null; true
+## re-check 5s later
+    PID    PPID    PGID     SID STAT CMD
+ 306550       1  306550  306550 Ss   sleep 300
+
+## finding (HF-09): the detached child SURVIVED the dsh session's end (alive from a fresh shell).
+## finding (HF-10): observe PGID above — child runs in its own session/process group (setsid);
+## the session's teardown did not kill it.

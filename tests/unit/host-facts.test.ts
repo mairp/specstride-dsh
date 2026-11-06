@@ -24,14 +24,9 @@ test("every row carries the dsh pin", () => {
 
 test("every unverified row carries a settling check; no verified row has one", () => {
   const unverified = unverifiedDshHostFacts();
-  assert.ok(unverified.length >= 7, "seven unverified rows are recorded");
+  assert.ok(unverified.length >= 2, "the not-yet-settled rows are recorded");
   const expected = [
-    "HF-09", // detached survival past session end
-    "HF-10", // teardown and the process group
-    "HF-11", // sandbox writable roots
-    "HF-12", // detached child inherits the sandbox
     "HF-13", // command-roster visibility
-    "HF-14", // a model-free headless task
     "HF-15", // the dsh tool-restriction flag
   ];
   for (const id of expected) {
@@ -42,6 +37,21 @@ test("every unverified row carries a settling check; no verified row has one", (
   }
   for (const row of unverified) {
     assert.ok(row.settlingCheck !== null && row.settlingCheck.length > 0);
+  }
+  // The five rows the live probe of F120-FR-030 settled on 2026-11-06
+  // (evals/live-probe.md): verified, settling check retired.
+  const settledByProbe = [
+    "HF-09", // detached survival past session end
+    "HF-10", // teardown and the process group
+    "HF-11", // sandbox writable roots
+    "HF-12", // detached child inherits the sandbox
+    "HF-14", // a model-free headless task
+  ];
+  for (const id of settledByProbe) {
+    const row = dshHostFactOf(id)!;
+    assert.equal(row.verifiedOn, "2026-11-06", `${id} settled by the live probe`);
+    assert.equal(row.settlingCheck, null, `${id} carries no settling check`);
+    assert.match(row.source, /live probe 2026-11-06/);
   }
   for (const row of dshHostFacts) {
     if (row.verifiedOn !== "unverified") {

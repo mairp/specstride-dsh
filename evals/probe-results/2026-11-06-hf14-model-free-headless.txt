@@ -1,0 +1,27 @@
+# live-probe-dsh — probe 1: model-free headless task (HF-14)
+date: 2026-11-06T21:06:15Z  host: Linux 7.0.14-15-pve  dsh: 0.1.0-rc.8
+DSH_PERMISSION_MODE=<unset>
+$ dsh --profile headless "print the literal text probe-ok and call no tool"
+probe-ok
+exit=0
+
+## re-run under isolated DSH_HOME=/tmp/hf14-dsh-home (unambiguous session log)
+$ DSH_HOME=/tmp/hf14-dsh-home dsh --profile headless "print the literal text probe-ok and call no tool"
+
+dsh: MISSING_CREDENTIAL: llm-pi-ai: no credential for provider route "zai"; its profile resolves ZAI_API_KEY, which is not set — store ZAI_API_KEY through the credentials service (the web Models page writes it) or export it, and remove apiKeyEnv only if this provider should authenticate from pi-ai's own environment discovery
+exit=0
+session log: /tmp/hf14-dsh-home/sessions/--root-specstride-dsh--/session-a1014c6f-251b-452e-972a-a12d461a6c30/session.jsonl.zstd
+
+## model invocations observed in the probe's own session log
+request/header: {"header": {"config": {"provider": "zai", "model": "glm-5.3-flash", "maxTokens": 16384}, "adapterDefaults": {"maxTokens": true}, "system": "You are an AI agent powered by DeepSeek Harness.\n\nYou are 
+assistant/model messages: 0  model ids seen: []
+
+## decisive evidence from the probe session (session-7e8f7a7c…, default DSH_HOME)
+- request/header seq 11: provider zai, model glm-5.3-flash, maxTokens 16384
+- assistant/chunk seq 18: usage inputTokens 665 outputTokens 4 cacheReadTokens 7040
+- assistant/message seq 20: text probe-ok, source kind=model provider=zai model=glm-5.3-flash, responseId 20…
+- isolated-home re-run refused: MISSING_CREDENTIAL (llm-pi-ai route zai) — headless will not even
+  boot a task without a model credential; a model is ALWAYS invoked.
+## finding (HF-14): dsh 0.1.0-rc.8 does NOT allow a model-free headless task.
+## consequence: the live probe is a PAID task under F120-FR-024, named live-probe-dsh
+## in paidTaskNames (src/evals/paid-lane.ts).

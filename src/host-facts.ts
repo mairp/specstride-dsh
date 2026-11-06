@@ -117,42 +117,38 @@ export const dshHostFacts: readonly HostFactRow[] = Object.freeze([
   {
     id: "HF-09",
     fact:
-      "Detached survival past session end: whether a run started from a dsh session outlives that session.",
-    source: `${R4}, F13 status (documentation)`,
-    verifiedOn: "unverified",
+      "Detached survival past session end: a run started detached from a dsh session outlives that session — observed 2026-11-06 (a run started through the skill specstride-run's launch step (the shim specstride-dsh, foreground) outlived the dsh session — alive from a fresh shell after the session exited, reparented to PID 1).",
+    source: `${R4}, F13 status (documentation); live probe 2026-11-06, evals/probe-results/2026-11-06-hf09-skill-launch-step.txt (rerun through the skill's launch step; also 2026-11-06-hf09-hf10-detached-survival.txt)`,
+    verifiedOn: "2026-11-06",
     pin: DSH_VERSION_PIN,
-    settlingCheck:
-      "the live probe of F120-FR-030: launch a stub run from a dsh session through the skill's launch step, end the session, and check the run lives and its state was written",
+    settlingCheck: null,
   },
   {
     id: "HF-10",
     fact:
-      "Teardown and the process group: whether dsh's session teardown kills the whole process group, taking a detached child with it.",
-    source: `${R4}, F13 status (documentation)`,
-    verifiedOn: "unverified",
+      "Teardown and the process group: dsh's session teardown does not kill the whole process group — the detached child survives the session's end in its own process group (own PGID and SID, reparented to PID 1; observed 2026-11-06).",
+    source: `${R4}, F13 status (documentation); live probe 2026-11-06, evals/probe-results/2026-11-06-hf09-skill-launch-step.txt (rerun through the skill's launch step; also 2026-11-06-hf09-hf10-detached-survival.txt)`,
+    verifiedOn: "2026-11-06",
     pin: DSH_VERSION_PIN,
-    settlingCheck:
-      "the live probe of F120-FR-030, teardown step: end the session and inspect the process group of the detached child",
+    settlingCheck: null,
   },
   {
     id: "HF-11",
     fact:
-      "Sandbox writable roots: which roots a dsh session may write besides the workspace (whether a writable root that includes the state home can be configured on the installed dsh).",
-    source: `${R4}, F17 status (documentation)`,
-    verifiedOn: "unverified",
+      "Sandbox writable roots: on the probe host (root, Linux) a dsh session wrote outside the workspace — into the state home — under BOTH workspace-write (headless, no approver) and danger-full-access; no sandbox denial was observed, so a writable root that includes the state home is in force on the installed rc.8 (observed 2026-11-06).",
+    source: `${R4}, F17 status (documentation); live probe 2026-11-06, evals/probe-results/2026-11-06-hf11-hf12-sandbox.txt`,
+    verifiedOn: "2026-11-06",
     pin: DSH_VERSION_PIN,
-    settlingCheck:
-      "the live probe of F120-FR-030, sandbox step: probe writes outside the workspace under each permission mode and record the writable roots",
+    settlingCheck: null,
   },
   {
     id: "HF-12",
     fact:
-      "Whether a detached child inherits the sandbox of the session that started it, or the engine's detach escapes it.",
-    source: `${R4}, F13/F17 status (documentation)`,
-    verifiedOn: "unverified",
+      "A detached child escapes the session's sandbox rather than inheriting it: from a workspace-write session the detached child's write outside the workspace landed (observed 2026-11-06).",
+    source: `${R4}, F13/F17 status (documentation); live probe 2026-11-06, evals/probe-results/2026-11-06-hf11-hf12-sandbox.txt`,
+    verifiedOn: "2026-11-06",
     pin: DSH_VERSION_PIN,
-    settlingCheck:
-      "the live probe of F120-FR-030: from a session in workspace-write, start a detached stub that writes outside the workspace and observe whether the write lands",
+    settlingCheck: null,
   },
   {
     id: "HF-13",
@@ -167,12 +163,11 @@ export const dshHostFacts: readonly HostFactRow[] = Object.freeze([
   {
     id: "HF-14",
     fact:
-      "A model-free headless task: whether `dsh --profile headless` can run a task that calls no model.",
-    source: `${R4}, F9 open question 5`,
-    verifiedOn: "unverified",
+      "A model-free headless task: dsh rc.8 does not allow one — `dsh --profile headless` invokes a model even for a no-tool task (usage inputTokens 665, outputTokens 4 observed) and refuses to boot a task without a model credential (MISSING_CREDENTIAL); the probe is therefore a paid task under F120-FR-024 (live-probe-dsh).",
+    source: `${R4}, F9 open question 5; live probe 2026-11-06, evals/probe-results/2026-11-06-hf14-model-free-headless.txt`,
+    verifiedOn: "2026-11-06",
     pin: DSH_VERSION_PIN,
-    settlingCheck:
-      "the live probe of F120-FR-030: run a headless task whose prompt requires no model call and observe whether a model is invoked; if dsh does not allow it, the probe is a paid task under F120-FR-024",
+    settlingCheck: null,
   },
   {
     id: "HF-15",
