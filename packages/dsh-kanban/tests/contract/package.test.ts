@@ -31,7 +31,12 @@ test("the manifest fields follow contracts/plugin-package.md", () => {
     bundle: { patch: "./cordis.patch.yml" },
     client: { platform: "web", inject: ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-conversation"] },
   });
+  // `.` maps to the fail-open loader (lib/server/entry.js) so the bundle
+  // patch can mount the bare package name (`name: '@specstride/dsh-kanban'`):
+  // verified against dsh 0.1.0-rc.8 by tests/real-dsh/fail-open.test.ts
+  // (T042), which resolves and mounts the module through the root export.
   assert.deepEqual(pkg.exports, {
+    ".": "./lib/server/entry.js",
     "./client": "./lib/client.js",
     "./server": "./lib/server/entry.js",
     "./package.json": "./package.json",

@@ -31,7 +31,7 @@ export function laneThresholdOf(config: unknown, log: (line: string) => void): n
 export type WebServerish = {
   host?: string;
   register?: (route: Record<string, unknown>) => unknown;
-  tapIndex?: (tap: (request: { url: string }) => { status: number; headers: Record<string, string>; body: string }) => unknown;
+  tapIndex?: (tap: (html: unknown) => unknown) => unknown;
 };
 
 /** One log line per refusal; no run text ever reaches it (F121-FR-016). */
@@ -66,23 +66,28 @@ export function start(
   });
   if (typeof routeDispose === "function") disposers.push(routeDispose);
 
-  // The index tap: one fresh token per response, plus the threshold meta (R5, R9).
-  // Hosts with `tapIndex` get the tap; others take the index as an exact route at `/`.
-  const indexHandler = (_request: { url?: string }) => {
-    const token = gate.mint();
-    const body = `<!doctype html><html><head>${tokenMeta(token)}${thresholdMeta(laneThreshold)}</head><body></body></html>`;
-    return {
-      status: 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", [TOKEN_HEADER]: token },
-      body,
-    };
-  };
+  // The index tap: one fresh token per response, plus the threshold meta (R5,
+  // R9). Hosts with `tapIndex` get a string transform — the host applies the
+  // taps to the rendered index HTML and streams the result (settled by the
+  // real-dsh spike, T055: `tapIndex((html) => html.replace(...))`); other
+  // hosts take the index as an exact route at `/`.
+  const metas = (): string => `${tokenMeta(gate.mint())}${thresholdMeta(laneThreshold)}`;
   if (typeof webServer.tapIndex === "function") {
-    const tapDispose = webServer.tapIndex(function specstrideKanbanIndexTap(request: { url?: string }) {
-      return indexHandler(request);
+    const tapDispose = webServer.tapIndex(function specstrideKanbanIndexTap(html: unknown): unknown {
+      if (typeof html !== "string" || !html.includes("<head>")) return html;
+      return html.replace("<head>", `<head>${metas()}`);
     });
     if (typeof tapDispose === "function") disposers.push(tapDispose);
   } else {
+    const indexHandler = (_request: { url?: string }) => {
+      const token = gate.mint();
+      const body = `<!doctype html><html><head>${tokenMeta(token)}${thresholdMeta(laneThreshold)}</head><body></body></html>`;
+      return {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", [TOKEN_HEADER]: token },
+        body,
+      };
+    };
     const indexDispose = webServer.register({
       name: "specstride-kanban-index",
       path: "/",

@@ -179,12 +179,28 @@ export function startPoller(options: PollerOptions): Poller {
         ...(token === null ? {} : { headers: { [TOKEN_HEADER]: token } }),
       });
       if (mine !== generation || disposed) return;
+      // HF-26: a 200 that is not JSON is the SPA fallback (or a proxy page),
+      // not an answer of the route — the unavailable line, no retry (R12).
+      const contentType =
+        typeof (response as { headers?: { get?: (name: string) => string | null } }).headers?.get === "function"
+          ? (response as { headers: { get: (name: string) => string | null } }).headers.get("content-type")
+          : null;
+      if (contentType !== null && contentType !== undefined && !contentType.includes("json")) {
+        options.message?.("Kanban unavailable — run /specstride-doctor");
+        return;
+      }
       const value = await response.json();
       if (mine !== generation || disposed) return;
       forbiddenRun = false;
       handle(value);
-    } catch {
+    } catch (error) {
       if (mine !== generation || disposed) return;
+      // A body that is not JSON at all (a syntax error, not a network fault)
+      // is also the unavailable condition, with no retry (R12, HF-26).
+      if (error instanceof SyntaxError) {
+        options.message?.("Kanban unavailable — run /specstride-doctor");
+        return;
+      }
       fail();
     } finally {
       if (mine === generation) {

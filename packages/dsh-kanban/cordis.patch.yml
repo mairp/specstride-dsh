@@ -1,3 +1,13 @@
-- name: "@specstride/dsh-kanban/server"
-  config:
-    laneThreshold: 100
+# The @specstride/dsh-kanban bundle patch (specs/121-dsh-kanban; F121-FR-002).
+# One insert: the fail-open loader module (the package root resolves to
+# lib/server/entry.js, so the row's name stays the bare package name and the
+# client-module scan of dsh-client-modules can resolve <pkg>/package.json for
+# the same fiber) mounts the read-only view route and the index tap when the
+# web server is on loopback. The entry catches every throw of the real module
+# at import or start, so a broken server half never stops dsh from booting.
+- insert:
+    - id: specstride-kanban-server
+      name: '@specstride/dsh-kanban'
+      inject: [webServer, sessions, sessionPersistence]
+      config:
+        laneThreshold: 100

@@ -14,6 +14,7 @@
     }
   },
   "exports": {
+    ".": "./lib/server/entry.js",
     "./client": "./lib/client.js",
     "./server": "./lib/server/entry.js",
     "./package.json": "./package.json"

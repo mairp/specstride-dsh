@@ -58,6 +58,28 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
     style = element;
   }
 
+  // No `specstride-view-token` meta in the page means the server half is not
+  // running (the fail-open loader of F121-FR-002 registered nothing): one
+  // unavailable line, zero requests, no retry (research.md R12, HF-26).
+  const canSeePage = typeof (doc as { querySelector?: unknown } | undefined)?.querySelector === "function";
+  if (canSeePage && tokenOf(doc) === null) {
+    const note = doc?.createElement("div");
+    note?.setAttribute?.("data-kanban-unavailable", "");
+    if (note !== undefined) {
+      note.textContent = "Kanban unavailable — run /specstride-doctor";
+      container?.appendChild?.(note);
+    }
+    return {
+      dispose() {
+        if (style !== undefined) {
+          if (typeof style.remove === "function") style.remove();
+          else style.parentNode?.removeChild(style);
+        }
+        pane?.unmount?.();
+      },
+    };
+  }
+
   let latest: TreeNode | undefined;
   const show = (tree: TreeNode): void => {
     latest = tree;

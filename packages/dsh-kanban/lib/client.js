@@ -70,6 +70,28 @@ window.__ModuleLoader__.load({
           style = element;
         }
       
+        // No `specstride-view-token` meta in the page means the server half is not
+        // running (the fail-open loader of F121-FR-002 registered nothing): one
+        // unavailable line, zero requests, no retry (research.md R12, HF-26).
+        const canSeePage = typeof (doc                                           )?.querySelector === "function";
+        if (canSeePage && tokenOf(doc) === null) {
+          const note = doc?.createElement("div");
+          note?.setAttribute?.("data-kanban-unavailable", "");
+          if (note !== undefined) {
+            note.textContent = "Kanban unavailable — run /specstride-doctor";
+            container?.appendChild?.(note);
+          }
+          return {
+            dispose() {
+              if (style !== undefined) {
+                if (typeof style.remove === "function") style.remove();
+                else style.parentNode?.removeChild(style);
+              }
+              pane?.unmount?.();
+            },
+          };
+        }
+      
         let latest                      ;
         const show = (tree          )       => {
           latest = tree;
@@ -320,12 +342,28 @@ window.__ModuleLoader__.load({
               ...(token === null ? {} : { headers: { [TOKEN_HEADER]: token } }),
             });
             if (mine !== generation || disposed) return;
+            // HF-26: a 200 that is not JSON is the SPA fallback (or a proxy page),
+            // not an answer of the route — the unavailable line, no retry (R12).
+            const contentType =
+              typeof (response                                                           ).headers?.get === "function"
+                ? (response                                                         ).headers.get("content-type")
+                : null;
+            if (contentType !== null && contentType !== undefined && !contentType.includes("json")) {
+              options.message?.("Kanban unavailable — run /specstride-doctor");
+              return;
+            }
             const value = await response.json();
             if (mine !== generation || disposed) return;
             forbiddenRun = false;
             handle(value);
-          } catch {
+          } catch (error) {
             if (mine !== generation || disposed) return;
+            // A body that is not JSON at all (a syntax error, not a network fault)
+            // is also the unavailable condition, with no retry (R12, HF-26).
+            if (error instanceof SyntaxError) {
+              options.message?.("Kanban unavailable — run /specstride-doctor");
+              return;
+            }
             fail();
           } finally {
             if (mine === generation) {
