@@ -51,6 +51,57 @@ export function currentValues(): Record<string, unknown> {
     BUDGET_LEVELS: [...BUDGET_LEVELS],
     BOUNDS: { ...COLLECTION_BOUNDS },
     TEXT_CAP_BYTES,
+    ...presentationValues(),
+  };
+}
+
+/* --------------------- presentation values (T035, F121-FR-013) --------------------- */
+
+export type PresentationMember = { glyph: string; label: string; grayscale: number };
+export type PresentationUnknown = { glyph: string; grayscale: number };
+
+type ClosedSetsFile = {
+  proposedByFeature: readonly { id: string; members: readonly Record<string, unknown>[]; unknown?: Record<string, unknown> }[];
+};
+
+export const KANBAN_CLOSED_SETS_PATH = join(REPOSITORY_ROOT, "contracts", "kanban-closed-sets.json");
+
+/**
+ * The three presentation tables of `contracts/kanban-closed-sets.json`
+ * (`kanban-lane-presentation`, `kanban-attention-presentation`,
+ * `kanban-budget-presentation`), as generated records keyed by member. The
+ * unknown member of a set is generated separately: its label is the raw value
+ * the board met, which only the board knows (F121-FR-014).
+ */
+export function presentationValues(path: string = KANBAN_CLOSED_SETS_PATH): Record<string, unknown> {
+  const sets = JSON.parse(readFileSync(path, "utf8")) as ClosedSetsFile;
+  const rowOf = (id: string) => {
+    const row = sets.proposedByFeature.find((entry) => entry.id === id);
+    if (row === undefined) throw new Error(`kanban-closed-sets.json holds no "${id}" row`);
+    return row;
+  };
+  const tableOf = (id: string, key: string): [Record<string, PresentationMember>, PresentationUnknown] => {
+    const row = rowOf(id);
+    const table: Record<string, PresentationMember> = {};
+    for (const member of row.members) {
+      const name = member[key];
+      if (typeof name !== "string") throw new Error(`the "${id}" row holds a member without "${key}"`);
+      table[name] = { glyph: String(member.glyph), label: String(member.label), grayscale: Number(member.grayscale) };
+    }
+    if (row.unknown === undefined) throw new Error(`the "${id}" row holds no unknown member`);
+    const unknown: PresentationUnknown = { glyph: String(row.unknown.glyph), grayscale: Number(row.unknown.grayscale) };
+    return [table, unknown];
+  };
+  const [lane, laneUnknown] = tableOf("kanban-lane-presentation", "lane");
+  const [attention, attentionUnknown] = tableOf("kanban-attention-presentation", "kind");
+  const [budget, budgetUnknown] = tableOf("kanban-budget-presentation", "level");
+  return {
+    LANE_PRESENTATION: lane,
+    LANE_PRESENTATION_UNKNOWN: laneUnknown,
+    ATTENTION_PRESENTATION: attention,
+    ATTENTION_PRESENTATION_UNKNOWN: attentionUnknown,
+    BUDGET_PRESENTATION: budget,
+    BUDGET_PRESENTATION_UNKNOWN: budgetUnknown,
   };
 }
 

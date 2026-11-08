@@ -8,6 +8,7 @@
  */
 import { startPanePoller, type Pane as PollerPane } from "./poller.ts";
 import { toReact } from "./react-adapter.ts";
+import styles from "./generated-styles.ts";
 
 export const VIEW_PATH = "/specstride/view";
 export { POLL_MS } from "./poller.ts";
@@ -36,13 +37,14 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
     render: (node: TreeNode, react: Reactish) => toReact(node, react),
   }) as { mount?: () => unknown; unmount?: () => void; container?: unknown; update?: (element: unknown) => void } | undefined;
   const container = (pane?.mount?.() ?? pane?.container ?? undefined) as
-    | { ownerDocument?: { createElement: (tag: string) => { setAttribute: (name: string, value: string) => void; remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } }; appendChild?: (child: unknown) => void }
+    | { ownerDocument?: { createElement: (tag: string) => { setAttribute: (name: string, value: string) => void; textContent?: string; remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } }; appendChild?: (child: unknown) => void }
     | undefined;
   const doc = container?.ownerDocument;
   let style: { remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } | undefined;
   if (doc !== undefined) {
     const element = doc.createElement("style");
     element.setAttribute("data-kanban-style", "");
+    element.textContent = typeof styles === "string" ? styles : "";
     container?.appendChild?.(element);
     style = element;
   }

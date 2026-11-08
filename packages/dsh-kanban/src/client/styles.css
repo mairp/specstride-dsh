@@ -1,0 +1,111 @@
+/*
+ * T035 — the board stylesheet (F121-FR-011, F121-FR-012; research.md R8).
+ *
+ * Every selector starts with the generated prefix class `.ssk-00000000…`
+ * (the neutral placeholder of the tree; the scan rejects any selector that
+ * does not start with `.ssk-<8 hex>`, or that reaches `:root`, `html`, `body`,
+ * `*`, or carries `@import`, `@font-face`, `prefers-color-scheme`). Every
+ * colour-bearing declaration takes a `var(--dsw-alias-…)` of the host only —
+ * the plugin declares no colour of its own and reads no
+ * `prefers-color-scheme`: the tokens switch when the host switches theme
+ * (`body[data-ds-dark-theme]`), with no reload (F121-FR-011). The tokens used
+ * here are recorded, with their light and dark values, in
+ * `tests/fixtures/dsw-tokens.rc8.json` (T034).
+ *
+ * The build appends one rule per distinct grayscale value of the three
+ * presentation sets (`.ssk-00000000 [data-gray="<v>"] { opacity: … }`),
+ * generated from `contracts/kanban-closed-sets.json`, so no two members of one
+ * set share a grayscale step (F121-FR-013).
+ *
+ * Card rows have a fixed height (2rem) so a virtualized window above the
+ * threshold stays exact (F121-FR-020, contracts/presentation.md "Windowing").
+ */
+
+.ssk-00000000 .ssk-00000000-board {
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  font-size: 0.8125rem;
+  overflow: auto;
+}
+
+.ssk-00000000 .ssk-00000000-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 14rem;
+  padding: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.5rem;
+  overflow-y: auto;
+}
+
+.ssk-00000000 .ssk-00000000-column-header {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+}
+
+.ssk-00000000 .ssk-00000000-column-holds {
+  color: var(--dsw-alias-label-caption);
+}
+
+.ssk-00000000 .ssk-00000000-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ssk-00000000 .ssk-00000000-group-header {
+  color: var(--dsw-alias-label-caption);
+}
+
+.ssk-00000000 .ssk-00000000-board [data-card-id] {
+  height: 2rem;
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  padding: 0 0.375rem;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ssk-00000000 .ssk-00000000-badge {
+  display: inline-flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.25rem;
+}
+
+.ssk-00000000 .ssk-00000000-banner {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  color: var(--dsw-alias-label-primary);
+}
+
+.ssk-00000000 .ssk-00000000-attention-line,
+.ssk-00000000 .ssk-00000000-budget-row {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.ssk-00000000 .ssk-00000000-norun {
+  color: var(--dsw-alias-label-secondary);
+}
