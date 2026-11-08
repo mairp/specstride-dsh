@@ -27,7 +27,7 @@
     "pin": "node scripts/core-pin.mjs",
     "pin:check": "node scripts/core-pin.mjs --check",
     "build": "node --experimental-strip-types scripts/build.ts",
-    "test": "node --experimental-strip-types --test tests/core-smoke.test.mjs \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\"",
+    "test": "node --experimental-strip-types --test tests/core-smoke.test.mjs \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\" \"packages/dsh-kanban/tests/**/*.test.ts\"",
     "conformance": "node --experimental-strip-types scripts/conformance.ts"
   },
   "dependencies": {

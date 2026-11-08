@@ -1,0 +1,3 @@
+- name: "@specstride/dsh-kanban/server"
+  config:
+    laneThreshold: 100
