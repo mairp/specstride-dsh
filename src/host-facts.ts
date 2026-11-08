@@ -41,6 +41,11 @@ export type HostFactRow = {
 const R4 = "docs/ecosystem/research/R4-dsh-host.md (verified-local 2026-09-29, re-checked 2026-11-06)";
 const FACTS = "research/dsh-plugin-facts.md (2026-10-04)";
 
+const K_PLUGIN = "specs/121-dsh-kanban/research.md R2";
+const K = (id: string, fact: string, source: string, verifiedOn: string, settlingCheck: string | null): HostFactRow => ({
+  id, fact, source: `${source} (${K_PLUGIN})`, verifiedOn, pin: DSH_VERSION_PIN, settlingCheck,
+});
+
 export const dshHostFacts: readonly HostFactRow[] = Object.freeze([
   {
     id: "HF-01",
@@ -179,6 +184,67 @@ export const dshHostFacts: readonly HostFactRow[] = Object.freeze([
     settlingCheck:
       "read of the installed rc.8 (and any later build): search the command surface for a tool-restriction flag; T030 records the finding and the eval driver keeps the environmental stub either way",
   },
+  K(
+    "HF-16",
+    "A `dsh.client` package is served at `/plugins/<id>/client.js` from its built `exports[\"./client\"]`, as one factory registered by `window.__ModuleLoader__.load({id, factory})`; the shell provides React, cordis and the static UI libraries as implicit externals.",
+    "dsh-client-modules/README.md; dsh-client-ui-trajectory/lib/client.js (first lines, its `require(\"react\")`)",
+    "2026-11-08", null),
+  K(
+    "HF-17",
+    "The tab ring: `ctx.slots.inject(\"conversation.view\", () => ctx.slots.register({ name, id, order, locale, label, inject }))`; Chat `order: 0`, Trajectory `order: 10`; the body renders the active entry only; each view owns its chrome.",
+    "dsh-client-ui-trajectory/lib/client.js:7341-7346 (re-read 2026-11-08); dsh-client-ui-conversation/README.md",
+    "2026-11-08", null),
+  K(
+    "HF-18",
+    "Which field of a `conversation.view` registration carries the component the body renders for the active id, and what `inject(sessionId)` must return.",
+    "slots.d.ts names `SlotCore.register` of `dsh-client-ui-slots` without the option type in the installed build",
+    "unverified",
+    "Read `SlotCore.register`'s option type in `dsh-client-ui-slots`, `registerTrajectoryConversationView` and the trajectory bundle's use of `ctx.layout` for its pane; then mount the client half in a browser on the real-dsh profile and find `[data-kanban]` in the page (person-run, quickstart step 9)"),
+  K(
+    "HF-19",
+    "A plugin's exact peer dependency on `@specstride/host-dsh` is satisfied inside `$DSH_HOME/profiles/web` when both tarballs are added with `dsh plugin --profile web add <host-dsh.tgz> <dsh-kanban.tgz> --save-exact`.",
+    "research/dsh-plugin-facts.md §1 (the pnpm forwarder)",
+    "unverified",
+    "The real-dsh lane installs both tarballs into a temporary `DSH_HOME` and resolves `@specstride/host-dsh/package.json` from the server half"),
+  K(
+    "HF-20",
+    "`ctx.webServer.register({ path, kind: exact|prefix, handler })` adds a named route; `/plugins` and `/api` belong to other plugins; `host` reads the bind host, `127.0.0.1` or `0.0.0.0`; a handler that throws is answered 400.",
+    "dsh-host-webserver/README.md",
+    "2026-11-08", null),
+  K(
+    "HF-21",
+    "A cordis module mounted by a bundle patch outside dsh's own roster can inject `webServer` and call `register`.",
+    "dsh-client-modules/lib/index.js:251 (`static inject = [\"webServer\", \"loader\"]`, an in-box module)",
+    "unverified",
+    "The real-dsh lane (T055) boots the web profile with the plugin and requests the route"),
+  K(
+    "HF-22",
+    "`ctx.webServer.tapIndex(transform)` transforms every index response (the fallback handler runs `applyIndexTaps`); used by in-box `dsh-client-ui-theme` and `dsh-client-modules`. Third-party use is not yet observed.",
+    "dsh-host-webserver/README.md; dsh-client-ui-theme/lib/index.js:76; dsh-client-modules/lib/index.js:292",
+    "unverified",
+    "As HF-21 (in-box use verified 2026-11-08), and assert the served index carries the plugin's `<meta name=\"specstride-view-token\">`"),
+  K(
+    "HF-23",
+    "A session's working directory: `ctx.sessions.get(id)?.header.cwd` (optional field) for a live session; `ctx.sessionPersistence.list()` returns `SessionHeader[]` with `cwd` for persisted ones.",
+    "dsh-session/README.md; dsh-session-persistence/README.md (README only)",
+    "unverified",
+    "The real-dsh lane opens one live and one cold session in two temporary workspaces and asserts the resolved cwd of each"),
+  K(
+    "HF-24",
+    "Theme: `light|dark|system` by the ThemeRuntime, dark marked by `body[data-ds-dark-theme]`; alias tokens `--dsw-alias-*` in `dsh-client-ui-theme/src/styles/*.css`.",
+    "research/dsh-plugin-facts.md §3",
+    "2026-10-04", null),
+  K(
+    "HF-25",
+    "The web profile boots with no model configured and sends no model request while no prompt is sent.",
+    "R4 of 120 (headless semantics); not read for the web profile",
+    "unverified",
+    "The real-dsh lane boots with no credentials and asserts no outbound request to a provider host (the profile's telemetry disabled, `DSH_TELEMETRY_MODE=DISABLED`)"),
+  K(
+    "HF-26",
+    "With `dsh-host-frontend-static` holding the fallback seat, a GET that matches no named route is answered with `index.html` and status 200 (SPA routing), after the index taps; the webserver answers 404 only while no fallback is registered.",
+    "dsh-host-frontend-static/README.md; dsh-host-webserver/README.md (README only)",
+    "2026-11-08", null),
 ]);
 
 /** The `unverified` rows, in table order — the ones a settling check awaits. */

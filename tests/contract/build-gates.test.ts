@@ -31,6 +31,7 @@ import {
   loadGradersFile,
   DSH_STATIC_RULES,
 } from "../../src/evals/driver.ts";
+import { kanbanNoModelFindings } from "../../src/gates.ts";
 import { staticCheckCallsAModel, SuiteRunnerInBuildError } from "@specstride/host-kit/evals";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -129,6 +130,36 @@ test("T035 no-model guard: staticFindings over the real manifest scripts is all-
     assert.equal(finding.ok, true, `check ${finding.check} failed: ${finding.detail}`);
   }
   assert.equal(staticCheckCallsAModel(), false);
+});
+
+test("T050 kanban no-model guard: the plugin tree scans clean and the scan fires on a planted finding (F121-SC-005)", () => {
+  // The real plugin tree: src/, scripts/ and tests/ hold no provider SDK
+  // import, no provider host name, no API-key variable read.
+  const real = kanbanNoModelFindings(join(ROOT, "packages", "dsh-kanban"));
+  assert.deepEqual(real, [], JSON.stringify(real));
+  // The scan fires, per pattern family, on a planted tree.
+  const scratch = mkdtempSync(join(tmpdir(), "kanban-nomodel-"));
+  const src = join(scratch, "src");
+  mkdirSync(src, { recursive: true });
+  const cases: [string, RegExp][] = [
+    ['import x from "@anthropic-ai/sdk";', /provider SDK import/],
+    ["fetch(`https://api.openai.com/v1/x`)", /provider host name/],
+    ["const key = process.env.OPENAI_API_KEY;", /API key variable read/],
+  ];
+  try {
+    cases.forEach(([line], index) => {
+      const file = join(src, `case${index}.ts`);
+      writeFileSync(file, line, "utf8");
+      const findings = kanbanNoModelFindings(scratch);
+      assert.equal(findings.length, 1, line);
+      assert.match(findings[0]!.detail, cases[index]![1]);
+      assert.match(findings[0]!.path, /case\d\.ts$/);
+      rmSync(file);
+    });
+    assert.deepEqual(kanbanNoModelFindings(scratch), []);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 test("T035: a suite runner in a build job raises the kit SuiteRunnerInBuildError", () => {

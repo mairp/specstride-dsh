@@ -1,0 +1,303 @@
+{
+  "$schema": "specstride.closed-sets-121/1",
+  "feature": "121-dsh-kanban",
+  "date": "2026-11-08",
+  "note": "Runtime contract read by the build (T003). Copied from specs/121-dsh-kanban/contracts/closed-sets.json: the proposedByFeature rows plus the consumedFromEngine rows. The code tables are held equal to it.",
+  "consumedFromEngine": [
+    {
+      "row": 243,
+      "set": "lanes",
+      "owner": "129",
+      "members": [
+        "queued",
+        "proposing",
+        "verifying",
+        "reviewing",
+        "approved",
+        "blocked",
+        "paused",
+        "failed"
+      ],
+      "unknownValue": "Shown as text with glyph ? in a trailing column; the card is not moved (F121-FR-014)"
+    },
+    {
+      "row": 244,
+      "set": "attention-kinds",
+      "owner": "129",
+      "members": [
+        "blocked-on-human",
+        "source-changed",
+        "dead-run",
+        "launch-abandoned",
+        "quota-pause",
+        "budget-alert",
+        "stale-run",
+        "orphan-processes",
+        "unknown-state"
+      ],
+      "unknownValue": "Shown as text with glyph ?; the item keeps its place (F121-FR-014)"
+    },
+    {
+      "row": 245,
+      "set": "budget-levels",
+      "owner": "129",
+      "members": [
+        "unknown",
+        "ok",
+        "info",
+        "warn",
+        "loud",
+        "over"
+      ],
+      "unknownValue": "Shown as text with glyph ? (F121-FR-014)"
+    },
+    {
+      "row": 2,
+      "set": "derived-run-conditions",
+      "owner": "100",
+      "members": [
+        "dead",
+        "stale",
+        "launch-abandoned"
+      ],
+      "unknownValue": "Not applicable: the view carries them as fields"
+    }
+  ],
+  "proposedByFeature": [
+    {
+      "id": "kanban-tab-identity",
+      "owner": 121,
+      "members": [
+        {
+          "slot": "conversation.view",
+          "id": "kanban",
+          "order": 20
+        }
+      ],
+      "rule": "after chat (order 0) and trajectory (order 10); any other value fails the build"
+    },
+    {
+      "id": "kanban-lane-presentation",
+      "owner": 121,
+      "members": [
+        {
+          "lane": "queued",
+          "glyph": "·",
+          "label": "Queued",
+          "grayscale": 232
+        },
+        {
+          "lane": "proposing",
+          "glyph": "▶",
+          "label": "Proposing",
+          "grayscale": 160
+        },
+        {
+          "lane": "verifying",
+          "glyph": "◇",
+          "label": "Verifying",
+          "grayscale": 184
+        },
+        {
+          "lane": "reviewing",
+          "glyph": "◎",
+          "label": "Reviewing",
+          "grayscale": 136
+        },
+        {
+          "lane": "approved",
+          "glyph": "✓",
+          "label": "Approved",
+          "grayscale": 88
+        },
+        {
+          "lane": "blocked",
+          "glyph": "⏸",
+          "label": "Blocked",
+          "grayscale": 208
+        },
+        {
+          "lane": "paused",
+          "glyph": "‖",
+          "label": "Paused",
+          "grayscale": 64
+        },
+        {
+          "lane": "failed",
+          "glyph": "✗",
+          "label": "Failed",
+          "grayscale": 40
+        }
+      ],
+      "unknown": {
+        "glyph": "?",
+        "label": "the raw value, as text",
+        "grayscale": 112
+      },
+      "rule": "total over row 243; glyph, label and grayscale pairwise distinct, grayscale at least 24 apart, unknown included; maps members to presentation, never anything to a lane (F121-FR-013)"
+    },
+    {
+      "id": "kanban-attention-presentation",
+      "owner": 121,
+      "members": [
+        {
+          "kind": "blocked-on-human",
+          "glyph": "!",
+          "label": "Needs you",
+          "grayscale": 40
+        },
+        {
+          "kind": "source-changed",
+          "glyph": "△",
+          "label": "Source changed",
+          "grayscale": 88
+        },
+        {
+          "kind": "dead-run",
+          "glyph": "†",
+          "label": "Run is dead",
+          "grayscale": 16
+        },
+        {
+          "kind": "launch-abandoned",
+          "glyph": "⊘",
+          "label": "Launch abandoned",
+          "grayscale": 64
+        },
+        {
+          "kind": "quota-pause",
+          "glyph": "‖",
+          "label": "Paused for quota",
+          "grayscale": 136
+        },
+        {
+          "kind": "budget-alert",
+          "glyph": "$",
+          "label": "Budget alert",
+          "grayscale": 112
+        },
+        {
+          "kind": "stale-run",
+          "glyph": "⌛",
+          "label": "View is stale",
+          "grayscale": 160
+        },
+        {
+          "kind": "orphan-processes",
+          "glyph": "◌",
+          "label": "Orphan processes",
+          "grayscale": 208
+        },
+        {
+          "kind": "unknown-state",
+          "glyph": "⁇",
+          "label": "Unknown state",
+          "grayscale": 232
+        }
+      ],
+      "unknown": {
+        "glyph": "?",
+        "label": "the raw value, as text",
+        "grayscale": 184
+      },
+      "rule": "total over row 244; pairwise distinct per channel; grayscale at least 24 apart, unknown included (F121-FR-013)"
+    },
+    {
+      "id": "kanban-budget-presentation",
+      "owner": 121,
+      "members": [
+        {
+          "level": "unknown",
+          "glyph": "–",
+          "label": "Unknown",
+          "grayscale": 232
+        },
+        {
+          "level": "ok",
+          "glyph": "✓",
+          "label": "OK",
+          "grayscale": 200
+        },
+        {
+          "level": "info",
+          "glyph": "i",
+          "label": "Info",
+          "grayscale": 136
+        },
+        {
+          "level": "warn",
+          "glyph": "!",
+          "label": "Warn",
+          "grayscale": 104
+        },
+        {
+          "level": "loud",
+          "glyph": "‼",
+          "label": "Loud",
+          "grayscale": 72
+        },
+        {
+          "level": "over",
+          "glyph": "✗",
+          "label": "Over",
+          "grayscale": 40
+        }
+      ],
+      "unknown": {
+        "glyph": "?",
+        "label": "the raw value, as text",
+        "grayscale": 168
+      },
+      "rule": "total over row 245; pairwise distinct per channel; grayscale at least 24 apart, unknown included (F121-FR-013)"
+    },
+    {
+      "id": "kanban-cli-verbs",
+      "owner": 121,
+      "members": [
+        {
+          "argv": [
+            "status",
+            "--json"
+          ]
+        },
+        {
+          "argv": [
+            "wait",
+            "--until-change",
+            "--cursor",
+            "<token>",
+            "--timeout",
+            "<seconds>"
+          ],
+          "note": "--cursor omitted on the first wait of a page without a token"
+        }
+      ],
+      "rule": "the server half spawns 120's shim with exactly these argv shapes; any other is refused by construction (no code path builds one) and by test (F121-FR-018). The shim's own `--protocol` probe before each call is 120's protocol check (F120-FR-012), not a verb of the server half"
+    },
+    {
+      "id": "kanban-route-answers",
+      "owner": 121,
+      "members": [
+        "view",
+        "unchanged",
+        "no-run",
+        "refused-schema",
+        "unavailable",
+        "run-changed",
+        "forbidden",
+        "method-not-allowed",
+        "bad-request"
+      ],
+      "rule": "every answer of the route carries one of these in `answer`; contracts/view-route.md"
+    }
+  ],
+  "addedToFeature120": [
+    {
+      "set": "dsh-host-checks",
+      "member": "host.kanban-plugin",
+      "position": "last (seventh)",
+      "owner": 121,
+      "rule": "info when not installed; never a launch check (R11)"
+    }
+  ]
+}

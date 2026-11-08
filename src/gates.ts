@@ -90,7 +90,7 @@ export function referenceClosureFindings(
 /**
  * The closure findings over a COMPOSED rendered skill, with the lines of a
  * generated appendix excluded — used for the doctor, whose generated
- * host-checks appendix quotes the probe targets of the six checks verbatim
+ * host-checks appendix quotes the probe targets of the checks verbatim
  * from `specs/120-host-dsh/contracts/doctor-host-checks.md`. Those probes run
  * inside the doctor runner, never as paths a skill session follows; line
  * attribution already pins every appendix line to that generated block.
@@ -219,4 +219,64 @@ export function protocolRangeRestatements(
   return files
     .filter((file) => PROTOCOL_RANGE_DECLARATION.test(file.text))
     .map((file) => file.path);
+}
+
+/* ---------------------------------------------------------------------------
+ * The kanban no-model scan (T050, F121-SC-005): the plugin's sources,
+ * scripts and tests hold no provider SDK import, no provider host name and
+ * no API-key variable read. A measurement over text — never a network call.
+ * ------------------------------------------------------------------------ */
+
+/** One finding of the kanban no-model scan: file, line, what matched. */
+export type KanbanNoModelFinding = {
+  readonly path: string;
+  readonly line: number;
+  readonly detail: string;
+};
+
+/** The provider SDK packages, provider host names and API-key reads. */
+const KANBAN_NO_MODEL_PATTERNS: readonly {
+  readonly what: string;
+  readonly pattern: RegExp;
+}[] = Object.freeze([
+  { what: "provider SDK import", pattern: /@anthropic-ai\/|@openai\/|from\s+["']openai["']|\brequire\(\s*["']openai["']|@google\/generative-ai|["']cohere-ai["']|["']@mistralai\// },
+  { what: "provider host name", pattern: /api\.anthropic\.com|api\.openai\.com|api\.deepseek\.com|generativelanguage\.googleapis\.com|api\.mistral\.ai|api\.cohere\.com/ },
+  { what: "API key variable read", pattern: /\bprocess\.env\.[A-Z_]*(API_KEY|APIKEY|ANTHROPIC|OPENAI|DEEPSEEK|GEMINI|COHERE|MISTRAL)/ },
+]);
+
+/** Scan a directory tree of text files for the no-model patterns (T050). */
+export function kanbanNoModelFindings(
+  root: string,
+  trees: readonly string[] = ["src", "scripts", "tests"],
+): readonly KanbanNoModelFinding[] {
+  const findings: KanbanNoModelFinding[] = [];
+  const scanFile = (path: string): void => {
+    const text = readFileSync(path, "utf8");
+    for (const [index, line] of text.split("\n").entries()) {
+      for (const { what, pattern } of KANBAN_NO_MODEL_PATTERNS) {
+        if (pattern.test(line)) {
+          findings.push({ path, line: index + 1, detail: `${what}: ${line.trim().slice(0, 120)}` });
+        }
+      }
+    }
+  };
+  const walk = (directory: string): void => {
+    let entries: string[];
+    try {
+      entries = readdirSync(directory);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const path = join(directory, entry);
+      if (statSync(path).isDirectory()) {
+        if (entry === "node_modules" || entry === "lib" || entry === "generated") continue;
+        walk(path);
+      } else {
+        scanFile(path);
+      }
+    }
+  };
+  for (const tree of trees) walk(join(root, tree));
+  return findings;
 }

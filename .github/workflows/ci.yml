@@ -1,0 +1,24 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      # The kanban package resolves its peer `@specstride/host-dsh` (this repo
+      # itself) through node_modules; install a real peer stub there, as a
+      # peer install would, so the shim path assertion holds.
+      - run: |
+          mkdir -p packages/dsh-kanban/node_modules/@specstride/host-dsh/bin
+          printf '{"name":"@specstride/host-dsh","version":"0.0.0","private":true,"type":"module"}' \
+            > packages/dsh-kanban/node_modules/@specstride/host-dsh/package.json
+          cp bin/specstride.mjs packages/dsh-kanban/node_modules/@specstride/host-dsh/bin/specstride.mjs
+      - run: npm test

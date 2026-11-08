@@ -1,0 +1,4 @@
+/* #fff red */
+.ssk-0a1b2c3d { color: var(--dsw-alias-text, var(--dsw-alias-text-2)); border: 1px solid var(--dsw-alias-border); }
+.ssk-0a1b2c3d [data-gray="12"], .ssk-0a1b2c3d .b { opacity: 0.047; box-shadow: 0 0 0 1px var(--dsw-alias-border); text-decoration-color: currentColor; }
+@keyframes spin { from { opacity: 0; } to { opacity: 1; } }

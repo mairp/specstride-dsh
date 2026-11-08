@@ -1,0 +1,27 @@
+{
+  "name": "@specstride/dsh-kanban",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Kanban tab for the dsh web UI (specs/121-dsh-kanban): renders the engine's RunView.",
+  "engines": { "node": ">=22.13" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-conversation"]
+    }
+  },
+  "exports": {
+    ".": "./lib/server/entry.js",
+    "./client": "./lib/client.js",
+    "./server": "./lib/server/entry.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/", "cordis.patch.yml"],
+  "peerDependencies": { "@specstride/host-dsh": "0.0.0" },
+  "devDependencies": {
+    "@specstride/contracts": "file:../../vendor/core/specstride-contracts-0.1.0.tgz"
+  }
+}

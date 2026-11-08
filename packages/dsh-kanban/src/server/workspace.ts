@@ -1,0 +1,53 @@
+/**
+ * T022 (research.md R5, HF-23; F121-FR-007) — the workspace resolver.
+ *
+ * A session id arrives as a URL query parameter; it is validated before any
+ * resolution. The live session's `header.cwd` wins over the cold header from
+ * `ctx.sessionPersistence.list()`. The path must be absolute and an existing
+ * directory, otherwise the route answers "no run" with 0 CLI calls.
+ */
+import { statSync } from "node:fs";
+import { isAbsolute } from "node:path";
+
+export type HostCtx = {
+  sessions?: Map<string, { header?: { cwd?: unknown } } | undefined>;
+  /** dsh rc.8's `list` is async (`Promise<SessionHeader[]>`); a bare array is still accepted (settled by T049's real-dsh lane). */
+  sessionPersistence?: {
+    list?: () => PromiseLike<{ sessionId?: string; cwd?: unknown }[]> | { sessionId?: string; cwd?: unknown }[];
+  };
+};
+
+export type Resolved = { ok: true; cwd: string } | { ok: false; reason: string };
+
+export const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+function cwdOfLive(ctx: HostCtx, sessionId: string): unknown {
+  const live = ctx.sessions?.get(sessionId);
+  return live?.header?.cwd;
+}
+
+async function cwdOfCold(ctx: HostCtx, sessionId: string): Promise<unknown> {
+  const cold = (await ctx.sessionPersistence?.list?.())?.find((header) => header?.sessionId === sessionId);
+  return cold?.cwd;
+}
+
+/** The header `cwd` must be a string, absolute, and an existing directory. */
+function usable(cwd: unknown): Resolved {
+  if (typeof cwd !== "string" || cwd === "") return { ok: false, reason: "session has no working directory" };
+  if (!isAbsolute(cwd)) return { ok: false, reason: "session working directory is relative" };
+  try {
+    if (!statSync(cwd).isDirectory()) return { ok: false, reason: "session working directory is not a directory" };
+  } catch {
+    return { ok: false, reason: "session working directory does not exist" };
+  }
+  return { ok: true, cwd };
+}
+
+export async function resolveWorkspace(ctx: HostCtx, sessionId: string): Promise<Resolved> {
+  if (typeof sessionId !== "string" || !SESSION_ID_PATTERN.test(sessionId)) {
+    return { ok: false, reason: "session id is outside ^[A-Za-z0-9_-]{1,128}$" };
+  }
+  const live = cwdOfLive(ctx, sessionId);
+  if (live !== undefined) return usable(live);
+  return usable(await cwdOfCold(ctx, sessionId));
+}

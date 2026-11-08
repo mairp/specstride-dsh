@@ -1,0 +1,24 @@
+{
+  "$comment": "T009. `valid`: passes the pinned strict isRunView. `unknownMember`: fails isRunView at exactly the one JSON pointer named, and is ACCEPTED by acceptView (T011), except where `refusedByAcceptView` is true.",
+  "valid": [
+    "empty-run",
+    "one-feature-each-lane",
+    "two-features-grouped",
+    "blocked-card",
+    "dead",
+    "stale-heartbeat",
+    "stale-major",
+    "launch-abandoned",
+    "attention-all-kinds",
+    "budget-all-levels",
+    "markup-text",
+    "big-2000"
+  ],
+  "unknownMember": {
+    "unknown-lane": { "path": "/cards/1/lane", "refusedByAcceptView": false },
+    "unknown-kind": { "path": "/attention/0/kind", "refusedByAcceptView": false },
+    "unknown-level": { "path": "/budget/0/level", "refusedByAcceptView": false },
+    "schema-major-2": { "path": null, "reason": "different-major", "refusedByAcceptView": true },
+    "no-schema": { "path": null, "reason": "missing-schema", "refusedByAcceptView": true }
+  }
+}

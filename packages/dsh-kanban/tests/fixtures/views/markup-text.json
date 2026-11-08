@@ -1,0 +1,211 @@
+{
+  "schema": "specstride.view/1",
+  "now": "2026-11-08T10:00:00.000Z",
+  "runId": "run-0001",
+  "workspaceId": "ws-0001",
+  "feature": "121-dsh-kanban",
+  "cursor": {
+    "file": "events.jsonl",
+    "offset": 1024,
+    "lastSeq": 12
+  },
+  "state": "running",
+  "stateSince": "2026-11-08T09:00:00.000Z",
+  "transition": "T-3",
+  "display": "running",
+  "liveness": "alive",
+  "conditions": {
+    "dead": false,
+    "stale": null,
+    "launchAbandoned": false
+  },
+  "launch": {
+    "launchId": "l-1",
+    "reason": "start",
+    "outcome": "started",
+    "engineStartId": 1
+  },
+  "progress": {
+    "phase": 2,
+    "phases": 9,
+    "phaseAttempt": 1,
+    "pass": 1,
+    "rejects": 0,
+    "malformed": 0,
+    "units": {
+      "done": 1,
+      "declared": 3
+    },
+    "elapsedSeconds": 3600
+  },
+  "strategy": {
+    "strategy": "classic",
+    "microLevel": null,
+    "layerOffReason": null
+  },
+  "phases": [
+    {
+      "number": 1,
+      "title": "Phase 1",
+      "evidence": false,
+      "approved": false,
+      "feedback": false
+    },
+    {
+      "number": 2,
+      "title": "Phase 2",
+      "evidence": false,
+      "approved": false,
+      "feedback": false
+    },
+    {
+      "number": 3,
+      "title": "Phase 3",
+      "evidence": false,
+      "approved": false,
+      "feedback": false
+    }
+  ],
+  "cards": [
+    {
+      "id": "c-<1>",
+      "feature": "<script>alert(1)</script>",
+      "phase": 1,
+      "lane": "verifying",
+      "ruleId": "L-03",
+      "flags": {
+        "dead": false,
+        "stale": false,
+        "yielded": false
+      }
+    },
+    {
+      "id": "c-2",
+      "feature": "<img src=x onerror=alert(1)>",
+      "phase": 2,
+      "lane": "verifying",
+      "ruleId": "L-03",
+      "flags": {
+        "dead": false,
+        "stale": false,
+        "yielded": false
+      }
+    },
+    {
+      "id": "c-3",
+      "feature": "bell\u0007feature",
+      "phase": 3,
+      "lane": "queued",
+      "ruleId": "L-01",
+      "flags": {
+        "dead": false,
+        "stale": false,
+        "yielded": false
+      }
+    }
+  ],
+  "lanes": [
+    {
+      "lane": "queued",
+      "cards": [
+        "c-3"
+      ]
+    },
+    {
+      "lane": "proposing",
+      "cards": []
+    },
+    {
+      "lane": "verifying",
+      "cards": [
+        "c-<1>",
+        "c-2"
+      ]
+    },
+    {
+      "lane": "reviewing",
+      "cards": []
+    },
+    {
+      "lane": "approved",
+      "cards": []
+    },
+    {
+      "lane": "blocked",
+      "cards": []
+    },
+    {
+      "lane": "paused",
+      "cards": []
+    },
+    {
+      "lane": "failed",
+      "cards": []
+    }
+  ],
+  "laneTable": {
+    "id": "lane-table",
+    "version": "1"
+  },
+  "attention": [
+    {
+      "kind": "blocked-on-human",
+      "key": "k",
+      "since": null,
+      "oneLine": "<script>x</script> <img onerror=y> \u0007 bell",
+      "need": "<b>need</b>",
+      "next": "specstride status",
+      "fields": {}
+    }
+  ],
+  "attentionOmitted": 0,
+  "budget": [],
+  "budgetOmitted": 0,
+  "processes": {
+    "holders": [],
+    "omitted": 0,
+    "cut": 0
+  },
+  "supervision": null,
+  "activity": {
+    "latestTool": null,
+    "observabilityMode": null,
+    "observabilityReason": null
+  },
+  "telemetry": [],
+  "timeline": {
+    "rows": [],
+    "omitted": 0
+  },
+  "parallel": null,
+  "diagnostics": {
+    "skippedLines": 0,
+    "gaps": [],
+    "majorsSeen": [
+      1
+    ],
+    "majorsAccepted": {
+      "from": 1,
+      "to": 1
+    },
+    "majorsOutOfRange": 0,
+    "tornLastLine": false,
+    "fieldsCut": [],
+    "fieldsDropped": [],
+    "redactorFailed": false
+  },
+  "signature": {
+    "record": {},
+    "token": "0a1b2c3d"
+  },
+  "stream": {
+    "first": null,
+    "last": null,
+    "runStartedAt": "2026-11-08T09:00:00.000Z",
+    "runEndedAt": null
+  },
+  "settled": {
+    "heartbeatLate": false,
+    "staleEventSec": 0
+  }
+}

@@ -8,6 +8,12 @@ engine, it never builds it), inserts the dsh frontmatter and runtime notes,
 and ships a shim that is the only channel between a skill and the Specstride
 CLI.
 
+**Also in this repository:** `packages/dsh-kanban/` — `@specstride/dsh-kanban`,
+the Kanban tab plugin for the dsh web UI (feature 121,
+`specs/121-dsh-kanban`), which depends on this package's shim and is **not**
+part of the 120 install: 120 ships without it
+(see [`packages/dsh-kanban/README.md`](packages/dsh-kanban/README.md)).
+
 **Platform note:** Linux is verified by this repository's gate. macOS is
 `unverified` until a runner passes the oracle there (constitution XVII; the
 Principle X pins name the tested releases).

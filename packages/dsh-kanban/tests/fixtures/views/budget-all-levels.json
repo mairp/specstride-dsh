@@ -1,0 +1,233 @@
+{
+  "schema": "specstride.view/1",
+  "now": "2026-11-08T10:00:00.000Z",
+  "runId": "run-0001",
+  "workspaceId": "ws-0001",
+  "feature": "121-dsh-kanban",
+  "cursor": {
+    "file": "events.jsonl",
+    "offset": 1024,
+    "lastSeq": 12
+  },
+  "state": "running",
+  "stateSince": "2026-11-08T09:00:00.000Z",
+  "transition": "T-3",
+  "display": "running",
+  "liveness": "alive",
+  "conditions": {
+    "dead": false,
+    "stale": null,
+    "launchAbandoned": false
+  },
+  "launch": {
+    "launchId": "l-1",
+    "reason": "start",
+    "outcome": "started",
+    "engineStartId": 1
+  },
+  "progress": {
+    "phase": 2,
+    "phases": 9,
+    "phaseAttempt": 1,
+    "pass": 1,
+    "rejects": 0,
+    "malformed": 0,
+    "units": {
+      "done": 1,
+      "declared": 3
+    },
+    "elapsedSeconds": 3600
+  },
+  "strategy": {
+    "strategy": "classic",
+    "microLevel": null,
+    "layerOffReason": null
+  },
+  "phases": [
+    {
+      "number": 1,
+      "title": "Phase 1",
+      "evidence": false,
+      "approved": false,
+      "feedback": false
+    }
+  ],
+  "cards": [
+    {
+      "id": "c-1",
+      "feature": "121-dsh-kanban",
+      "phase": 1,
+      "lane": "verifying",
+      "ruleId": "L-03",
+      "flags": {
+        "dead": false,
+        "stale": false,
+        "yielded": false
+      }
+    }
+  ],
+  "lanes": [
+    {
+      "lane": "queued",
+      "cards": []
+    },
+    {
+      "lane": "proposing",
+      "cards": []
+    },
+    {
+      "lane": "verifying",
+      "cards": [
+        "c-1"
+      ]
+    },
+    {
+      "lane": "reviewing",
+      "cards": []
+    },
+    {
+      "lane": "approved",
+      "cards": []
+    },
+    {
+      "lane": "blocked",
+      "cards": []
+    },
+    {
+      "lane": "paused",
+      "cards": []
+    },
+    {
+      "lane": "failed",
+      "cards": []
+    }
+  ],
+  "laneTable": {
+    "id": "lane-table",
+    "version": "1"
+  },
+  "attention": [],
+  "attentionOmitted": 0,
+  "budget": [
+    {
+      "scope": "scope-0",
+      "role": null,
+      "costClass": "api",
+      "spent": null,
+      "tokens": null,
+      "cap": null,
+      "fraction": null,
+      "level": "unknown",
+      "notional": false,
+      "quota": "ok"
+    },
+    {
+      "scope": "scope-1",
+      "role": "critic",
+      "costClass": "api",
+      "spent": 10,
+      "tokens": 1000,
+      "cap": 50,
+      "fraction": 0.2,
+      "level": "ok",
+      "notional": false,
+      "quota": "ok"
+    },
+    {
+      "scope": "scope-2",
+      "role": null,
+      "costClass": "api",
+      "spent": 20,
+      "tokens": 2000,
+      "cap": 50,
+      "fraction": 0.4,
+      "level": "info",
+      "notional": false,
+      "quota": "ok"
+    },
+    {
+      "scope": "scope-3",
+      "role": "critic",
+      "costClass": "api",
+      "spent": 30,
+      "tokens": 3000,
+      "cap": 50,
+      "fraction": 0.6,
+      "level": "warn",
+      "notional": true,
+      "quota": "ok"
+    },
+    {
+      "scope": "scope-4",
+      "role": null,
+      "costClass": "api",
+      "spent": 40,
+      "tokens": 4000,
+      "cap": 50,
+      "fraction": 0.8,
+      "level": "loud",
+      "notional": false,
+      "quota": "ok"
+    },
+    {
+      "scope": "scope-5",
+      "role": "critic",
+      "costClass": "api",
+      "spent": 50,
+      "tokens": 5000,
+      "cap": 50,
+      "fraction": 1,
+      "level": "over",
+      "notional": false,
+      "quota": "ok"
+    }
+  ],
+  "budgetOmitted": 0,
+  "processes": {
+    "holders": [],
+    "omitted": 0,
+    "cut": 0
+  },
+  "supervision": null,
+  "activity": {
+    "latestTool": null,
+    "observabilityMode": null,
+    "observabilityReason": null
+  },
+  "telemetry": [],
+  "timeline": {
+    "rows": [],
+    "omitted": 0
+  },
+  "parallel": null,
+  "diagnostics": {
+    "skippedLines": 0,
+    "gaps": [],
+    "majorsSeen": [
+      1
+    ],
+    "majorsAccepted": {
+      "from": 1,
+      "to": 1
+    },
+    "majorsOutOfRange": 0,
+    "tornLastLine": false,
+    "fieldsCut": [],
+    "fieldsDropped": [],
+    "redactorFailed": false
+  },
+  "signature": {
+    "record": {},
+    "token": "0a1b2c3d"
+  },
+  "stream": {
+    "first": null,
+    "last": null,
+    "runStartedAt": "2026-11-08T09:00:00.000Z",
+    "runEndedAt": null
+  },
+  "settled": {
+    "heartbeatLate": false,
+    "staleEventSec": 0
+  }
+}
