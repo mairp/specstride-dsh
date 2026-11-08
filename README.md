@@ -27,8 +27,10 @@ npm install        # resolves the pinned engine tarballs; no install script, not
 npm run build      # renders skills/ + bin/, runs every build gate
 npm test           # unit + contract tests; no test calls a model
 npm run conformance
+npm install -g . vendor/core/specstride-0.1.0.tgz   # puts specstride-host-dsh and the pinned specstride CLI on PATH
 ```
 
+Nothing is on npm yet, so the CLI comes from the tarball this repository pins.
 Then, in the consumer repository:
 
 ```sh
@@ -43,6 +45,10 @@ the skills); `--shared` into `$HOME/.agents/skills`; the default (user) scope
 into `$DSH_HOME/skills`. The installer installs, reports and removes — it
 never overwrites foreign content and never updates a file whose hash no longer
 matches the record (that file is the consumer's text now).
+The doctor's `host.skills-installed` looks in every root dsh scans, in rank
+order (`<projectRoot>/.dsh/skills`, `<projectRoot>/.agents/skills`,
+`$DSH_HOME/skills`, `~/.agents/skills`; the project root is `PROJECT_ROOT`, else
+the working directory), so an install in any scope satisfies it.
 
 ## Doctor
 
