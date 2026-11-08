@@ -11,7 +11,10 @@ import { isAbsolute } from "node:path";
 
 export type HostCtx = {
   sessions?: Map<string, { header?: { cwd?: unknown } } | undefined>;
-  sessionPersistence?: { list?: () => { sessionId?: string; cwd?: unknown }[] };
+  /** dsh rc.8's `list` is async (`Promise<SessionHeader[]>`); a bare array is still accepted (settled by T049's real-dsh lane). */
+  sessionPersistence?: {
+    list?: () => PromiseLike<{ sessionId?: string; cwd?: unknown }[]> | { sessionId?: string; cwd?: unknown }[];
+  };
 };
 
 export type Resolved = { ok: true; cwd: string } | { ok: false; reason: string };
@@ -23,8 +26,8 @@ function cwdOfLive(ctx: HostCtx, sessionId: string): unknown {
   return live?.header?.cwd;
 }
 
-function cwdOfCold(ctx: HostCtx, sessionId: string): unknown {
-  const cold = ctx.sessionPersistence?.list?.()?.find((header) => header?.sessionId === sessionId);
+async function cwdOfCold(ctx: HostCtx, sessionId: string): Promise<unknown> {
+  const cold = (await ctx.sessionPersistence?.list?.())?.find((header) => header?.sessionId === sessionId);
   return cold?.cwd;
 }
 
@@ -40,11 +43,11 @@ function usable(cwd: unknown): Resolved {
   return { ok: true, cwd };
 }
 
-export function resolveWorkspace(ctx: HostCtx, sessionId: string): Resolved {
+export async function resolveWorkspace(ctx: HostCtx, sessionId: string): Promise<Resolved> {
   if (typeof sessionId !== "string" || !SESSION_ID_PATTERN.test(sessionId)) {
     return { ok: false, reason: "session id is outside ^[A-Za-z0-9_-]{1,128}$" };
   }
   const live = cwdOfLive(ctx, sessionId);
   if (live !== undefined) return usable(live);
-  return usable(cwdOfCold(ctx, sessionId));
+  return usable(await cwdOfCold(ctx, sessionId));
 }

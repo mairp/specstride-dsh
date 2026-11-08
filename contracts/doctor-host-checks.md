@@ -13,6 +13,8 @@ Feature 120. Date: 2026-11-06. Six checks, closed set owner 120 (`closed-sets.js
 | 5 | `host.state-root-writable` | can a file be created under `$XDG_STATE_HOME/specstride/` in the current mode (probe file, then removed) | writable → `ok`; blocked → `warn` (the skills still work; `launch` will state it in one line, F120-FR-017); unverified → `warn` | false | exactly `DSH_PERMISSION_MODE=danger-full-access`, or a writable root that includes the state home **where the installed dsh supports one** (clause `unverified`); never an offer to move state into the working tree; this package never changes the mode |
 | 6 | `host.permission-mode` | `DSH_PERMISSION_MODE` in force (verified fact, rc.8: default `workspace-write` with `ask` when unset) and whether an approval can be answered (headless = no approver — R4 F11; other surfaces follow the installed dsh) | `danger-full-access` → `ok`; headless → `warn` with the no-approver fact; `workspace-write` with `ask` → `info` | false | none required; the finding is what `specstride-run` states when `host.state-root-writable` warned (F120-FR-017) |
 
+| 7 | `host.kanban-plugin` (added by 121, F121-FR-019) | `$DSH_HOME/profiles/web/package.json` for `@specstride/dsh-kanban`: installed, version, exact pin; the server half's start line only where dsh exposes a log (unverified — reported `unknown`, never assumed) | not installed → `info` (120 ships without the plugin); non-exact spec → `warn`; exact → `ok` with `server half started|unknown` | false — never a launch check | install with `dsh plugin --profile web add <package> --save-exact`; a non-exact spec is re-pinned with `--save-exact` |
+
 Severity closed set: `ok`, `info`, `warn`, `fail`; unknown severity → `warn` (EP-14).
 
 ## Composition notes (R7)

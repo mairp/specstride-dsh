@@ -11,7 +11,10 @@ import { isAbsolute } from "node:path";
 
                        
                                                                      
-                                                                                
+                                                                                                                                   
+                        
+                                                                                                                
+    
   
 
                                                                                  
@@ -23,8 +26,8 @@ function cwdOfLive(ctx         , sessionId        )          {
   return live?.header?.cwd;
 }
 
-function cwdOfCold(ctx         , sessionId        )          {
-  const cold = ctx.sessionPersistence?.list?.()?.find((header) => header?.sessionId === sessionId);
+async function cwdOfCold(ctx         , sessionId        )                   {
+  const cold = (await ctx.sessionPersistence?.list?.())?.find((header) => header?.sessionId === sessionId);
   return cold?.cwd;
 }
 
@@ -40,11 +43,11 @@ function usable(cwd         )           {
   return { ok: true, cwd };
 }
 
-export function resolveWorkspace(ctx         , sessionId        )           {
+export async function resolveWorkspace(ctx         , sessionId        )                    {
   if (typeof sessionId !== "string" || !SESSION_ID_PATTERN.test(sessionId)) {
     return { ok: false, reason: "session id is outside ^[A-Za-z0-9_-]{1,128}$" };
   }
   const live = cwdOfLive(ctx, sessionId);
   if (live !== undefined) return usable(live);
-  return usable(cwdOfCold(ctx, sessionId));
+  return usable(await cwdOfCold(ctx, sessionId));
 }

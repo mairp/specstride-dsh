@@ -43,8 +43,11 @@ export const name = "specstride-kanban-server";
 export async function apply(ctx: unknown, config?: unknown): Promise<void> {
   try {
     const mod = (await import("./index.js")) as { start: (context: unknown, cfg?: unknown) => unknown };
-    mod.start(ctx, config);
-    logLine(`specstride-kanban: server half started ${versionOf()}`);
+    const result = mod.start(ctx, config) as { started?: boolean } | undefined;
+    // One line per boot: started on a real start, the refusal case logs its own
+    // single line inside the start and must not gain a second one here
+    // (settled by T049's real-dsh lane).
+    if (result?.started !== false) logLine(`specstride-kanban: server half started ${versionOf()}`);
   } catch (error) {
     logLine(`${UNAVAILABLE_PREFIX} ${(error as Error | undefined)?.name ?? "Error"}`);
   }

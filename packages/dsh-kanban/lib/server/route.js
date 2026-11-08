@@ -49,7 +49,7 @@ function mapResult(result                           )        {
 
 /** The answer for one session query: workspace, then one CLI call, then the mapping. */
 export async function answerSession(ctx         , sessionId        , cursor                )                 {
-  const resolved = resolveWorkspace(ctx, sessionId);
+  const resolved = await resolveWorkspace(ctx, sessionId);
   if (!resolved.ok) return reply(200, { answer: "no-run" }); // resolution failure: 0 CLI calls (F121-FR-007)
   // With a cursor the cycle is the blocking wait, then at most one status (F121-FR-004).
   return mapResult(cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd));
@@ -57,10 +57,18 @@ export async function answerSession(ctx         , sessionId        , cursor     
 
                                                                                                              
 
+/**
+ * Case-insensitive header read: the host's `node:http` request lowercases
+ * every header name; the fake contexts of the tests may not (settled against
+ * the real dsh, T049).
+ */
 function headerValue(request            , name        )                     {
-  const value = request.headers?.[name];
-  if (typeof value === "string") return value;
-  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  const lower = name.toLowerCase();
+  for (const [key, value] of Object.entries(request.headers ?? {})) {
+    if (key.toLowerCase() !== lower) continue;
+    if (typeof value === "string") return value;
+    if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  }
   return undefined;
 }
 
@@ -71,8 +79,10 @@ export function createViewHandler(ctx         , gate            )               
     if ((request.method ?? "GET").toUpperCase() !== "GET") {
       return { status: 405, body: { answer: "method-not-allowed" }, headers: { ...HEADERS, Allow: "GET" } };
     }
-    // 2. Path (the exact route guarantees it; checked again).
-    const url = new URL(request.url ?? `http://127.0.0.1${VIEW_PATH}`);
+    // 2. Path (the exact route guarantees it; checked again). The host's
+    //    `node:http` request url is the relative request target — a base is
+    //    required to parse it (settled against the real dsh, T049).
+    const url = new URL(request.url ?? VIEW_PATH, "http://127.0.0.1");
     if (url.pathname !== VIEW_PATH) return reply(404, { answer: "bad-request" });
     // 3. Token (T-41: admitted, live, never evicted) — before anything else runs.
     const token = headerValue(request, TOKEN_HEADER);

@@ -116,6 +116,26 @@ export type PermissionModeObservation = {
   readonly approval: "answerable" | "no-approver";
 };
 
+/**
+ * The `host.kanban-plugin` observation (F121-FR-019; research.md R11): what
+ * `$DSH_HOME/profiles/web/package.json` pins for `@specstride/dsh-kanban`,
+ * and the server half's start state. `serverHalf` is `started` only from the
+ * server half's own start line where dsh exposes a log — never assumed
+ * (Principle XIV); the collector reports `unknown` until that surface exists.
+ */
+export type KanbanPluginObservation = {
+  readonly installed: boolean;
+  /** The raw spec string in the profile manifest, when installed. */
+  readonly spec?: string;
+  /** True only for an exact pin (`<version>` with no range operator). */
+  readonly exact: boolean;
+  readonly serverHalf: "started" | "unknown";
+};
+
+/** The plugin package the check looks for (the plugin's provisional name). */
+export const KANBAN_PLUGIN_NAME = "@specstride/dsh-kanban";
+
+
 export type DshObservations = {
   readonly "cli-found"?: boolean;
   readonly protocol?: number | null;
@@ -123,6 +143,7 @@ export type DshObservations = {
   readonly "skills-installed"?: SkillsInstalledObservation;
   readonly "state-root-writable"?: "writable" | "blocked" | "unverified";
   readonly "permission-mode"?: PermissionModeObservation;
+  readonly "kanban-plugin"?: KanbanPluginObservation;
 };
 
 /* -------------------------------------------------------------------------
@@ -276,6 +297,24 @@ export function dshDoctorChecks(engineVersion: string): readonly DoctorCheck[] {
       fixHint:
         "none required; the finding is what specstride-run states when host.state-root-writable warned",
     }),
+    // 7 — the kanban plugin in the web profile (added by 121, F121-FR-019):
+    // reads the profile manifest only; never a launch check; `serverHalf`
+    // is `unknown` unless the server half's own start line was seen.
+    dshCheck({
+      id: "host.kanban-plugin",
+      severityRule: (observed) => {
+        const o = observed as KanbanPluginObservation | undefined | null;
+        if (o === undefined || o === null) return SEVERITY_WHEN_NOT_OBSERVED;
+        if (!o.installed) return "info"; // 120 ships without the plugin
+        return o.exact ? "ok" : "warn";
+      },
+      lb: false,
+      order: 7,
+      probe: (injected) => Promise.resolve(injected["kanban-plugin"]),
+      messageTemplate: "the Kanban plugin in the web profile is {state}",
+      fixHint:
+        "install with `dsh plugin --profile web add @specstride/dsh-kanban --save-exact`; re-pin a range spec with `--save-exact`",
+    }),
   ];
   const ids = checks.map((check) => check.id);
   if (ids.join(",") !== DSH_HOST_CHECK_IDS.join(",")) {
@@ -393,6 +432,13 @@ function describeObservation(id: string, observed: unknown): string {
       ? `${o.mode} (headless — ${NO_APPROVER_FACT.toLowerCase()})`
       : o.mode;
   }
+  if (id === "host.kanban-plugin") {
+    const o = observed as KanbanPluginObservation;
+    if (!o.installed) return "not installed";
+    return `installed ${o.spec ?? "(unknown version)"}${
+      o.exact ? " (exact)" : " (range — re-pin with --save-exact)"
+    }; server half ${o.serverHalf}`;
+  }
   return String(observed);
 }
 
@@ -409,6 +455,12 @@ function evidenceOf(id: string, observed: unknown): string {
   if (id === "host.permission-mode") {
     const o = (observed ?? {}) as PermissionModeObservation | null;
     return o === null ? "not observed" : `mode=${o.mode} approval=${o.approval}`;
+  }
+  if (id === "host.kanban-plugin") {
+    const o = observed as KanbanPluginObservation | null | undefined;
+    if (o === undefined || o === null || !o.installed) return "not installed";
+    // No secret value: the pin shape and the start state only.
+    return `spec=${o.exact ? "exact" : "range"} serverHalf=${o.serverHalf}`;
   }
   return observed === undefined || observed === null
     ? "not observed"
@@ -585,6 +637,8 @@ export async function collectObservations(
 
   observations["skills-installed"] = skillsInstalledObservation(env);
 
+  observations["kanban-plugin"] = kanbanPluginObservation(env);
+
   observations["state-root-writable"] = stateRootWritable(env);
 
   const mode =
@@ -656,6 +710,47 @@ function skillVersion(path: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The kanban plugin in the web profile (F121-FR-019, R11): the spec under
+ * `$DSH_HOME/profiles/web/package.json` (dependencies or devDependencies),
+ * exact only when the raw spec is a bare version. The server half's start
+ * line is `unknown` here: dsh rc.8 exposes no per-profile log surface to
+ * read (unverified, HF row) — "started" is never assumed, only reported
+ * from the server half's own line when a log surface exists.
+ */
+export function kanbanPluginObservation(
+  env: NodeJS.ProcessEnv,
+): KanbanPluginObservation {
+  const home = env.DSH_HOME ?? "";
+  const manifestPath = home
+    ? join(home, "profiles", "web", "package.json")
+    : null;
+  if (manifestPath === null) {
+    return { installed: false, exact: false, serverHalf: "unknown" };
+  }
+  let manifest: {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch {
+    return { installed: false, exact: false, serverHalf: "unknown" };
+  }
+  const spec =
+    manifest.dependencies?.[KANBAN_PLUGIN_NAME] ??
+    manifest.devDependencies?.[KANBAN_PLUGIN_NAME];
+  if (typeof spec !== "string") {
+    return { installed: false, exact: false, serverHalf: "unknown" };
+  }
+  return {
+    installed: true,
+    spec,
+    exact: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/.test(spec.trim()),
+    serverHalf: "unknown",
+  };
 }
 
 /** Probe file under `$XDG_STATE_HOME/specstride/`, then removed. */

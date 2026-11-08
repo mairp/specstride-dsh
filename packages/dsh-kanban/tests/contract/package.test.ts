@@ -58,7 +58,7 @@ test("the peer is the root package's exact version; no runtime dependency; the c
   }
 });
 
-test("npm pack --dry-run --json lists only lib/, cordis.patch.yml and package.json", () => {
+test("npm pack --dry-run --json lists only lib/, cordis.patch.yml, package.json and README.md", () => {
   buildKanban(); // the pack is of the built package; the build is deterministic and idempotent
   const output = execFileSync("npm", ["pack", "--dry-run", "--json"], { cwd: packageRoot, encoding: "utf8" });
   const data = JSON.parse(output) as { name: string; files: { path: string }[] }[];
@@ -68,8 +68,13 @@ test("npm pack --dry-run --json lists only lib/, cordis.patch.yml and package.js
   assert.ok(paths.includes("package.json"));
   assert.ok(paths.includes("cordis.patch.yml"));
   assert.ok(paths.some((path) => path.startsWith("lib/")));
+  // npm packs a README automatically, beside any `files` list (T053 ships one).
+  assert.ok(paths.includes("README.md"), "the shipped README rides the tarball");
   for (const path of paths) {
-    assert.ok(path === "package.json" || path === "cordis.patch.yml" || path.startsWith("lib/"), path);
+    assert.ok(
+      path === "package.json" || path === "cordis.patch.yml" || path === "README.md" || path.startsWith("lib/"),
+      path,
+    );
   }
 });
 

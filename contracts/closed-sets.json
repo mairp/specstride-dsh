@@ -37,8 +37,10 @@
         "host.dsh-version",
         "host.skills-installed",
         "host.state-root-writable",
-        "host.permission-mode"
+        "host.permission-mode",
+        "host.kanban-plugin"
       ],
+      "ownerNote": "host.kanban-plugin appended by specs/121-dsh-kanban (F121-FR-019); the set itself stays owner 120",
       "rule": "the doctor of this package runs exactly these; unknown id in a filter exits 3; kit-shaped per contracts/doctor-host-checks.md"
     }
   ]

@@ -35,6 +35,7 @@ import {
   descriptionMeasureViolations,
   hashTarball,
   hashTree,
+  kanbanNoModelFindings,
   protocolRangeRestatements,
   referenceClosureFindingsForComposed,
   unattributedLines,
@@ -336,10 +337,19 @@ for (const [name, command] of Object.entries(manifestScripts.scripts ?? {})) {
 }
 const graderLines = gradeFixturesForBuild();
 for (const line of graderLines) console.log(`grader: ${line}`);
+// The plugin is under the same guard (specs/121-dsh-kanban, T050,
+// F121-SC-005): its sources, scripts and tests hold no provider SDK import,
+// no provider host name, no API-key variable read.
+const kanbanFindings = kanbanNoModelFindings(join(ROOT, "packages", "dsh-kanban"));
+for (const finding of kanbanFindings) {
+  fail(`kanban no-model check failed (F121-SC-005): ${finding.path}:${finding.line} — ${finding.detail}`);
+}
 console.log(
   `no-model guard: static check ${findings.length}/` +
     `${findings.length} finding group(s) ok, no build job starts a dsh session, ` +
-    `${graderLines.length} recorded fixture(s) graded — the build calls no model (F120-FR-025)`,
+    `${graderLines.length} recorded fixture(s) graded, ` +
+    `kanban plugin (packages/dsh-kanban src/scripts/tests) scanned, ${kanbanFindings.length} finding(s)` +
+    ` — the build calls no model (F120-FR-025, F121-SC-005)`,
 );
 
 

@@ -67,9 +67,9 @@ test("a cold session from sessionPersistence resolves when not live", async () =
   rmSync(coldDir, { recursive: true, force: true });
 });
 
-test("the live header wins over the cold one", () => {
+test("the live header wins over the cold one", async () => {
   const ctx = fakeCtx([{ id: "s", cwd: work }], [{ sessionId: "s", cwd: "/definitely/elsewhere" }]);
-  assert.deepEqual(resolveWorkspace(ctx as never, "s"), { ok: true, cwd: work });
+  assert.deepEqual(await resolveWorkspace(ctx as never, "s"), { ok: true, cwd: work });
 });
 
 test("an id outside ^[A-Za-z0-9_-]{1,128}$ answers no-run with 0 CLI calls", async () => {

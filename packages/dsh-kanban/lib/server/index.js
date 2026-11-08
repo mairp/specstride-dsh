@@ -39,6 +39,26 @@ function logLine(line        )       {
   console.error(line);
 }
 
+/**
+ * The slice of `node:http` ServerResponse the route writes through: the host
+ * hands the handler the raw pair and owns nothing of the body (settled by the
+ * real-dsh lane, T049).
+ */
+                         
+                      
+                                                      
+                                 
+  
+
+function writeReply(
+  response           ,
+  reply                                                                                              ,
+)       {
+  response.statusCode = reply.status;
+  for (const [name, value] of Object.entries(reply.headers)) response.setHeader(name, value);
+  response.end(JSON.stringify(reply.body));
+}
+
 export function start(
   ctx                                                                                             ,
   config                              ,
@@ -62,7 +82,15 @@ export function start(
     name: "specstride-kanban-view",
     path: VIEW_PATH,
     kind: "exact",
-    handler: createViewHandler(ctx, gate),
+    // The host's handler owns the response lifecycle: `node:http` `(req, res)`
+    // (settled against the real dsh, T049). When a response is given the
+    // reply is written to it; the Reply is still returned so the fake hosts
+    // of the unit tests read it without a response object.
+    handler: async (request         , response            ) => {
+      const reply = await createViewHandler(ctx, gate)(request                                                          );
+      if (response !== undefined) writeReply(response, reply);
+      return reply;
+    },
   });
   if (typeof routeDispose === "function") disposers.push(routeDispose);
 

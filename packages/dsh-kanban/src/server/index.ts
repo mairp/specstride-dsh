@@ -39,6 +39,26 @@ function logLine(line: string): void {
   console.error(line);
 }
 
+/**
+ * The slice of `node:http` ServerResponse the route writes through: the host
+ * hands the handler the raw pair and owns nothing of the body (settled by the
+ * real-dsh lane, T049).
+ */
+export type Responder = {
+  statusCode?: number;
+  setHeader: (name: string, value: string) => unknown;
+  end: (body: string) => unknown;
+};
+
+function writeReply(
+  response: Responder,
+  reply: { status: number; body: Record<string, unknown>; headers: Readonly<Record<string, string>> },
+): void {
+  response.statusCode = reply.status;
+  for (const [name, value] of Object.entries(reply.headers)) response.setHeader(name, value);
+  response.end(JSON.stringify(reply.body));
+}
+
 export function start(
   ctx: HostCtx & { webServer?: WebServerish; effect?: { add?: (dispose: () => void) => unknown } },
   config?: { laneThreshold?: unknown },
@@ -62,7 +82,15 @@ export function start(
     name: "specstride-kanban-view",
     path: VIEW_PATH,
     kind: "exact",
-    handler: createViewHandler(ctx, gate),
+    // The host's handler owns the response lifecycle: `node:http` `(req, res)`
+    // (settled against the real dsh, T049). When a response is given the
+    // reply is written to it; the Reply is still returned so the fake hosts
+    // of the unit tests read it without a response object.
+    handler: async (request: unknown, response?: Responder) => {
+      const reply = await createViewHandler(ctx, gate)(request as Parameters<ReturnType<typeof createViewHandler>[0]>[0]);
+      if (response !== undefined) writeReply(response, reply);
+      return reply;
+    },
   });
   if (typeof routeDispose === "function") disposers.push(routeDispose);
 
