@@ -162,30 +162,9 @@ function loadBundle(): { factory: (require: (id: string) => unknown) => unknown 
 
 test("the built React adapter receives the markup-text tree as string children only", () => {
   const { react, elements } = fakeReact();
-  let render: ((node: TreeNode, reactInstance: unknown) => unknown) | undefined;
-  const inertTimers = { setTimeout: () => 0, clearTimeout: () => {} };
-  const mod = loadBundle().factory(() => undefined) as { default?: unknown };
-  const installed = (mod.default ?? mod) as (ctx: unknown, require?: unknown) => { registration: { inject: (sessionId: string) => { dispose: () => void } }; dispose: () => void };
-  assert.ok(typeof installed === "function", "the bundle's default export is the start factory");
-  const started = installed(
-    {
-      slots: { inject: () => undefined },
-      layout: (descriptor: { render?: typeof render }) => {
-        render = descriptor.render ?? undefined;
-        return undefined;
-      },
-      timer: inertTimers,
-    },
-    () => undefined,
-  );
-  const pane = started.registration.inject("session-markup");
-  assert.ok(typeof render === "function", "the pane exposes its render through ctx.layout");
-  try {
-    render?.(tree, react);
-  } finally {
-    pane.dispose();
-    started.dispose();
-  }
+  const mod = loadBundle().factory(() => undefined) as { toReact?: (node: TreeNode, reactInstance: unknown) => unknown };
+  assert.equal(typeof mod.toReact, "function", "the bundle exports the React adapter");
+  mod.toReact?.(tree, react);
   assert.ok(elements.length > 0, "the adapter produced elements");
 
   const strings: string[] = [];
@@ -210,4 +189,15 @@ test("the built React adapter receives the markup-text tree as string children o
   assert.ok(strings.some((text) => text.includes("\uFFFD")), "the U+0007 replacement reaches React as U+FFFD text");
   assert.ok(strings.every((text) => !text.includes("\u0007")), "no raw U+0007 reaches React");
   assert.ok(!JSON.stringify(elements).includes("dangerouslySetInnerHTML"), "no dangerouslySetInnerHTML anywhere in the rendered elements");
+});
+
+test("the built bundle is a cordis plugin {inject, apply} with no default export (loader regression)", () => {
+  // The dsh loader's unwrapExports takes `exports.default ?? exports`: a default
+  // export would hide `inject`, and the first ctx.locale read would throw
+  // 'cannot get property "locale" without inject'.
+  const mod = loadBundle().factory(() => undefined) as { default?: unknown; inject?: unknown; apply?: unknown };
+  assert.equal(mod.default, undefined, "no default export");
+  assert.equal(typeof mod.apply, "function", "apply is exported");
+  assert.ok(Array.isArray(mod.inject), "inject is exported");
+  for (const service of ["slots", "locale"]) assert.ok((mod.inject as string[]).includes(service), `inject declares ${service}`);
 });
