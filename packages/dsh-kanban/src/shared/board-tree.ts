@@ -1,7 +1,8 @@
 /**
  * T021 — the board element tree (contracts/presentation.md "Element tree and
  * attributes"; F121-FR-008, F121-FR-009, F121-FR-012, F121-FR-014); T035 —
- * presentation applied (F121-FR-013).
+ * presentation applied (F121-FR-013); T047 — the windowed column and the
+ * orbit/board toggle (F121-FR-020, F121-FR-021; contracts/orbit.md).
  *
  * A pure function: equal input (view or board model of T020), equal tree —
  * byte-equal under `serialize`. Every run text enters as a `text` field of the
@@ -9,15 +10,26 @@
  * together — the glyph as its text, the label as `aria-label`, the grayscale
  * as `data-gray` — from the one presentation table (T035); an unknown member
  * keeps its raw value as the label and the glyph `?` (F121-FR-014).
+ *
+ * Windowing (T047): on a windowed model (`windowOf`, the `windowed` flag) only
+ * the columns that hold cards in the window become nodes — an empty lane
+ * collapses out of the tree while the board is scrolled, and is back as soon as
+ * the model is unwindowed. The model keeps all eight lanes; only the tree
+ * differs (F121-FR-020).
  */
 import { el, txt, type Node } from "./tree.ts";
 import { boardOf, type BoardModel } from "./board-model.ts";
 import { attentionPresentation, budgetPresentation, lanePresentation, type Presentation } from "./presentation.ts";
+import { orbitOf, type Orbit } from "./orbit.ts";
 import type { ReadView } from "./view-read.ts";
 
 export type TreeOptions = {
   /** The scoped class prefix, `.ssk-<8 hex of the package version hash>`; default the neutral placeholder. */
   prefix?: string;
+  /** The projection: `"board"` (the lanes) or `"orbit"` (the rings); default `"board"`. */
+  projection?: "board" | "orbit";
+  /** The scroll position of each windowed column, in card rows, keyed by its `data-window` value. */
+  scrollTops?: Readonly<Record<string, number>>;
 };
 
 export const DEFAULT_PREFIX = "ssk-00000000";
@@ -41,6 +53,10 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
   const prefix = options.prefix ?? DEFAULT_PREFIX;
   const board: BoardModel = "banners" in input ? (input as BoardModel) : boardOf(input as ReadView, { answer: "view" });
 
+  if (options.projection === "orbit") {
+    return orbitTree(orbitOf(board), { prefix });
+  }
+
   const children: Node[] = [];
   for (const banner of board.banners) {
     children.push(badge(prefix, attentionPresentation(conditionKind(banner.condition))));
@@ -50,7 +66,10 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
     children.push(txt("div", { role: "status", "data-norun": "true", class: `${prefix}-norun` }, board.noRunText));
   }
 
-  for (const column of board.columns) {
+  // While the board is windowed, a lane with no cards in the window collapses
+  // out of the tree; the model keeps all eight lanes (F121-FR-020).
+  const columns = board.windowed ? board.columns.filter((column) => column.cards.length > 0) : board.columns;
+  for (const column of columns) {
     const count = column.cards.length;
     const attrs: Record<string, string> = {
       "aria-label": `${column.label}, ${count} cards`,
@@ -64,9 +83,23 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
       el("div", { class: `${prefix}-column-header` }, [badge(prefix, lanePresentation(column.lanes[0] ?? "")), txt("span", {}, column.label)]),
     ];
     if (column.lanes.length > 1) parts.push(txt("div", { class: `${prefix}-column-holds` }, `holds ${column.lanes.join(", ")}`));
-    for (const group of column.groups) {
+    // A windowed column wraps its cards in one scroll container (`data-window`,
+    // the one per column the adapter binds its scroll handler to); the position
+    // the client holds travels as the plain `data-scroll-top` attribute (rows).
+    const windowKey = attrs["data-lane"] ?? (attrs["data-lanes"] ?? "");
+    const cardParts: Node[] = column.groups.map((group) => {
       const header = group.feature === null ? "no feature" : group.feature;
-      parts.push(el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => card.node)]));
+      return el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => card.node)]);
+    });
+    if (board.windowed && column.cards.length > 0) {
+      const scrollTop = options.scrollTops?.[windowKey];
+      parts.push(el("div", {
+        "data-window": windowKey,
+        class: `${prefix}-column-scroll`,
+        ...(scrollTop === undefined ? {} : { "data-scroll-top": String(scrollTop) }),
+      }, cardParts));
+    } else {
+      parts.push(...cardParts);
     }
     children.push(el("section", attrs, parts));
   }
@@ -103,4 +136,46 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
     role: "region",
     "aria-label": "Specstride run",
   }, children);
+}
+
+/**
+ * The orbit projection of the board (T047; F121-FR-021; contracts/orbit.md):
+ * one dashed guide circle per ring (`data-ring`), one node per body
+ * (`data-card-id`), and the text readout rendered as a list beside the figure —
+ * the readout is the accessible name of the figure, so no fact rides on the
+ * picture alone. Pure: the same orbit, the same tree.
+ */
+export function orbitTree(orbit: Orbit, options: TreeOptions = {}): Node {
+  const prefix = options.prefix ?? DEFAULT_PREFIX;
+  const circles = orbit.rings.map((ring) =>
+    el("circle", {
+      "data-ring": ring.lane,
+      class: `${prefix}-ring`,
+      "aria-label": `${ring.label}, ${ring.count} cards`,
+      r: String(ring.radius),
+    }),
+  );
+  const bodies = orbit.rings.flatMap((ring) =>
+    ring.cards.map((card) =>
+      el("circle", {
+        "data-card-id": card.cardId,
+        "data-lane": card.lane,
+        class: `${prefix}-body`,
+        cx: String(card.x),
+        cy: String(card.y),
+        "aria-label": `${card.cardId} on ${card.lane}`,
+      }),
+    ),
+  );
+  const figure = el("svg", {
+    "data-kanban-orbit": "",
+    class: `${prefix}-orbit`,
+    role: "img",
+    "aria-label": orbit.lines.join("; "),
+  }, [...circles, ...bodies]);
+  const readout = el("ul", {
+    "data-kanban-orbit-readout": "",
+    class: `${prefix}-orbit-readout`,
+  }, orbit.lines.map((line) => txt("li", { class: `${prefix}-orbit-line` }, line)));
+  return el("div", { "data-kanban": "", class: `${prefix}-orbit-figure` }, [figure, readout]);
 }

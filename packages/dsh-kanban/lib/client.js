@@ -448,7 +448,46 @@ window.__ModuleLoader__.load({
         return react.createElement(node.tag, { ...node.attrs, key }, ...children);
       }
       
+      /**
+       * T047 — the scroll wiring of the windowed columns (F121-FR-020). One scroll
+       * listener per windowed column (each `[data-window]` element of the rendered
+       * board), reporting its position in card rows; no handler ever travels through
+       * the tree itself (the T006 tree refuses `on*` attributes — the listener is
+       * attached to the live element after the render). Returns the detacher, which
+       * the pane calls on unmount so no listener outlives the tab.
+       */
+      const WINDOW_SELECTOR = "[data-window]";
+      /** The card row is a fixed 2rem: rows and pixels map 1:1 (40 px per row at the default root size). */
+      const ROW_PX = 32;
+      
+      function bindColumnScroll(
+        root                                                                                                                                                                                                                                                                                                                                        ,
+        onScroll                                                    ,
+      )             {
+        const attached                                                                                                                                          = [];
+        const columns = root.querySelectorAll?.(WINDOW_SELECTOR) ?? [];
+        for (const element of Array.from(columns                                                                                                                                                                                                                                                                                         )) {
+          const listener = (event                                     )       => {
+            const key = element.getAttribute?.("data-window") ?? "";
+            const rows = Math.max(0, Math.round((event.target?.scrollTop ?? 0) / ROW_PX));
+            onScroll(key, rows);
+          };
+          element.addEventListener?.("scroll", listener);
+          attached.push({ element, listener: listener                             });
+        }
+        return () => {
+          for (const { element, listener } of attached) {
+            element.removeEventListener?.("scroll", listener                            );
+          }
+        };
+      }
+      
+                                                                      
+      
       exports.toReact = toReact;
+      exports.bindColumnScroll = bindColumnScroll;
+      exports.WINDOW_SELECTOR = WINDOW_SELECTOR;
+      exports.ROW_PX = ROW_PX;
     },
     "client/styles.css": function (module, exports) {
       module.exports = "/*\n * T035 — the board stylesheet (F121-FR-011, F121-FR-012; research.md R8).\n *\n * Every selector starts with the generated prefix class `.ssk-00000000…`\n * (the neutral placeholder of the tree; the scan rejects any selector that\n * does not start with `.ssk-<8 hex>`, or that reaches `:root`, `html`, `body`,\n * `*`, or carries `@import`, `@font-face`, `prefers-color-scheme`). Every\n * colour-bearing declaration takes a `var(--dsw-alias-…)` of the host only —\n * the plugin declares no colour of its own and reads no\n * `prefers-color-scheme`: the tokens switch when the host switches theme\n * (`body[data-ds-dark-theme]`), with no reload (F121-FR-011). The tokens used\n * here are recorded, with their light and dark values, in\n * `tests/fixtures/dsw-tokens.rc8.json` (T034).\n *\n * The build appends one rule per distinct grayscale value of the three\n * presentation sets (`.ssk-00000000 [data-gray=\"<v>\"] { opacity: … }`),\n * generated from `contracts/kanban-closed-sets.json`, so no two members of one\n * set share a grayscale step (F121-FR-013).\n *\n * Card rows have a fixed height (2rem) so a virtualized window above the\n * threshold stays exact (F121-FR-020, contracts/presentation.md \"Windowing\").\n */\n\n.ssk-00000000 .ssk-00000000-board {\n  display: flex;\n  gap: 0.75rem;\n  align-items: stretch;\n  color: var(--dsw-alias-label-primary);\n  background: var(--dsw-alias-bg-base);\n  font-size: 0.8125rem;\n  overflow: auto;\n}\n\n.ssk-00000000 .ssk-00000000-column {\n  display: flex;\n  flex-direction: column;\n  gap: 0.5rem;\n  min-width: 14rem;\n  padding: 0.5rem;\n  background: var(--dsw-alias-bg-layer-1);\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 0.5rem;\n  overflow-y: auto;\n}\n\n.ssk-00000000 .ssk-00000000-column-header {\n  display: flex;\n  gap: 0.375rem;\n  align-items: center;\n  color: var(--dsw-alias-label-secondary);\n  font-weight: 600;\n}\n\n.ssk-00000000 .ssk-00000000-column-holds {\n  color: var(--dsw-alias-label-caption);\n}\n\n.ssk-00000000 .ssk-00000000-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n}\n\n.ssk-00000000 .ssk-00000000-group-header {\n  color: var(--dsw-alias-label-caption);\n}\n\n.ssk-00000000 .ssk-00000000-board [data-card-id] {\n  height: 2rem;\n  display: flex;\n  gap: 0.375rem;\n  align-items: center;\n  padding: 0 0.375rem;\n  background: var(--dsw-alias-bg-layer-2);\n  border: 1px solid var(--dsw-alias-border-l1);\n  border-radius: 0.25rem;\n  overflow: hidden;\n  white-space: nowrap;\n}\n\n.ssk-00000000 .ssk-00000000-badge {\n  display: inline-flex;\n  width: 1.25rem;\n  height: 1.25rem;\n  align-items: center;\n  justify-content: center;\n  flex: none;\n  background: var(--dsw-alias-bg-layer-2);\n  color: var(--dsw-alias-label-primary);\n  border: 1px solid var(--dsw-alias-border-l2);\n  border-radius: 0.25rem;\n}\n\n.ssk-00000000 .ssk-00000000-banner {\n  display: flex;\n  gap: 0.375rem;\n  align-items: center;\n  color: var(--dsw-alias-label-primary);\n}\n\n.ssk-00000000 .ssk-00000000-attention-line,\n.ssk-00000000 .ssk-00000000-budget-row {\n  display: flex;\n  gap: 0.375rem;\n  align-items: center;\n  color: var(--dsw-alias-label-secondary);\n}\n\n.ssk-00000000 .ssk-00000000-norun {\n  color: var(--dsw-alias-label-secondary);\n}\n";
@@ -501,6 +540,8 @@ window.__ModuleLoader__.load({
                            
                        
                           
+                                                                                                           
+                           
         
       
                                   
@@ -806,7 +847,8 @@ window.__ModuleLoader__.load({
       /**
        * T021 — the board element tree (contracts/presentation.md "Element tree and
        * attributes"; F121-FR-008, F121-FR-009, F121-FR-012, F121-FR-014); T035 —
-       * presentation applied (F121-FR-013).
+       * presentation applied (F121-FR-013); T047 — the windowed column and the
+       * orbit/board toggle (F121-FR-020, F121-FR-021; contracts/orbit.md).
        *
        * A pure function: equal input (view or board model of T020), equal tree —
        * byte-equal under `serialize`. Every run text enters as a `text` field of the
@@ -814,15 +856,26 @@ window.__ModuleLoader__.load({
        * together — the glyph as its text, the label as `aria-label`, the grayscale
        * as `data-gray` — from the one presentation table (T035); an unknown member
        * keeps its raw value as the label and the glyph `?` (F121-FR-014).
+       *
+       * Windowing (T047): on a windowed model (`windowOf`, the `windowed` flag) only
+       * the columns that hold cards in the window become nodes — an empty lane
+       * collapses out of the tree while the board is scrolled, and is back as soon as
+       * the model is unwindowed. The model keeps all eight lanes; only the tree
+       * differs (F121-FR-020).
        */
       const __m1 = __load("shared/tree"); const { el, txt } = __m1;
       const __m2 = __load("shared/board-model"); const { boardOf } = __m2;
       const __m3 = __load("shared/presentation"); const { attentionPresentation, budgetPresentation, lanePresentation } = __m3;
+      const __m4 = __load("shared/orbit"); const { orbitOf } = __m4;
                                                      
       
                                  
                                                                                                                     
                         
+                                                                                                 
+                                       
+                                                                                                           
+                                                      
         
       
       const DEFAULT_PREFIX = "ssk-00000000";
@@ -846,6 +899,10 @@ window.__ModuleLoader__.load({
         const prefix = options.prefix ?? DEFAULT_PREFIX;
         const board             = "banners" in input ? (input              ) : boardOf(input            , { answer: "view" });
       
+        if (options.projection === "orbit") {
+          return orbitTree(orbitOf(board), { prefix });
+        }
+      
         const children         = [];
         for (const banner of board.banners) {
           children.push(badge(prefix, attentionPresentation(conditionKind(banner.condition))));
@@ -855,7 +912,10 @@ window.__ModuleLoader__.load({
           children.push(txt("div", { role: "status", "data-norun": "true", class: `${prefix}-norun` }, board.noRunText));
         }
       
-        for (const column of board.columns) {
+        // While the board is windowed, a lane with no cards in the window collapses
+        // out of the tree; the model keeps all eight lanes (F121-FR-020).
+        const columns = board.windowed ? board.columns.filter((column) => column.cards.length > 0) : board.columns;
+        for (const column of columns) {
           const count = column.cards.length;
           const attrs                         = {
             "aria-label": `${column.label}, ${count} cards`,
@@ -869,9 +929,23 @@ window.__ModuleLoader__.load({
             el("div", { class: `${prefix}-column-header` }, [badge(prefix, lanePresentation(column.lanes[0] ?? "")), txt("span", {}, column.label)]),
           ];
           if (column.lanes.length > 1) parts.push(txt("div", { class: `${prefix}-column-holds` }, `holds ${column.lanes.join(", ")}`));
-          for (const group of column.groups) {
+          // A windowed column wraps its cards in one scroll container (`data-window`,
+          // the one per column the adapter binds its scroll handler to); the position
+          // the client holds travels as the plain `data-scroll-top` attribute (rows).
+          const windowKey = attrs["data-lane"] ?? (attrs["data-lanes"] ?? "");
+          const cardParts         = column.groups.map((group) => {
             const header = group.feature === null ? "no feature" : group.feature;
-            parts.push(el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => card.node)]));
+            return el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => card.node)]);
+          });
+          if (board.windowed && column.cards.length > 0) {
+            const scrollTop = options.scrollTops?.[windowKey];
+            parts.push(el("div", {
+              "data-window": windowKey,
+              class: `${prefix}-column-scroll`,
+              ...(scrollTop === undefined ? {} : { "data-scroll-top": String(scrollTop) }),
+            }, cardParts));
+          } else {
+            parts.push(...cardParts);
           }
           children.push(el("section", attrs, parts));
         }
@@ -910,8 +984,51 @@ window.__ModuleLoader__.load({
         }, children);
       }
       
+      /**
+       * The orbit projection of the board (T047; F121-FR-021; contracts/orbit.md):
+       * one dashed guide circle per ring (`data-ring`), one node per body
+       * (`data-card-id`), and the text readout rendered as a list beside the figure —
+       * the readout is the accessible name of the figure, so no fact rides on the
+       * picture alone. Pure: the same orbit, the same tree.
+       */
+      function orbitTree(orbit       , options              = {})       {
+        const prefix = options.prefix ?? DEFAULT_PREFIX;
+        const circles = orbit.rings.map((ring) =>
+          el("circle", {
+            "data-ring": ring.lane,
+            class: `${prefix}-ring`,
+            "aria-label": `${ring.label}, ${ring.count} cards`,
+            r: String(ring.radius),
+          }),
+        );
+        const bodies = orbit.rings.flatMap((ring) =>
+          ring.cards.map((card) =>
+            el("circle", {
+              "data-card-id": card.cardId,
+              "data-lane": card.lane,
+              class: `${prefix}-body`,
+              cx: String(card.x),
+              cy: String(card.y),
+              "aria-label": `${card.cardId} on ${card.lane}`,
+            }),
+          ),
+        );
+        const figure = el("svg", {
+          "data-kanban-orbit": "",
+          class: `${prefix}-orbit`,
+          role: "img",
+          "aria-label": orbit.lines.join("; "),
+        }, [...circles, ...bodies]);
+        const readout = el("ul", {
+          "data-kanban-orbit-readout": "",
+          class: `${prefix}-orbit-readout`,
+        }, orbit.lines.map((line) => txt("li", { class: `${prefix}-orbit-line` }, line)));
+        return el("div", { "data-kanban": "", class: `${prefix}-orbit-figure` }, [figure, readout]);
+      }
+      
       exports.badge = badge;
       exports.boardTree = boardTree;
+      exports.orbitTree = orbitTree;
       exports.DEFAULT_PREFIX = DEFAULT_PREFIX;
     },
     "shared/generated/contract-values": function (module, exports) {
@@ -1118,6 +1235,129 @@ window.__ModuleLoader__.load({
       exports.ATTENTION_PRESENTATION_UNKNOWN = ATTENTION_PRESENTATION_UNKNOWN;
       exports.BUDGET_PRESENTATION = BUDGET_PRESENTATION;
       exports.BUDGET_PRESENTATION_UNKNOWN = BUDGET_PRESENTATION_UNKNOWN;
+    },
+    "shared/orbit": function (module, exports) {
+      /**
+       * T047 — the orbit projection (F121-FR-021; contracts/orbit.md). The same
+       * columns the board shows, projected as rings: one ring per column that holds
+       * cards, in board order (the engine's eight first, then unknown lanes as rim
+       * rings), with deterministic golden-angle seeding (Lisa `galaxy.ts:228`,
+       * 137.50776405003785°), exactly 240 relaxation iterations of same-ring
+       * inverse-square repulsion (step 0.5°), and 3-decimal rounding (Lisa
+       * `galaxy.ts:319-325`). No clock, no randomness, no input but the board model:
+       * two calls on equal input serialize byte-equal (CT-121-05).
+       *
+       * Beside the figure goes a text readout that names every ring with its card
+       * count and every card with its lane, in board order (CT-121-06) — the readout
+       * is the accessible name of the figure, so no fact rides on the picture alone.
+       *
+       * Dropped from Lisa (owner-ruled, R10): mass, springs, critical path, clusters
+       * — the view carries none of these and the plugin derives nothing.
+       */
+      const __m1 = __load("shared/generated/contract-values"); const { LANES } = __m1;
+      const __m2 = __load("shared/board-model"); const { boardOf } = __m2;
+                                                     
+      
+      /** Lisa `galaxy.ts:228` — the golden angle in radians (137.50776405003785°). */
+      const GOLDEN_ANGLE = 2.399963229728653;
+      /** Lisa `galaxy.ts` — the relaxation is iteration-bounded, not converged. */
+      const ITERATIONS = 240;
+      /** The innermost ring and the ring gap (Lisa `galaxy.ts:42-51`). */
+      const RING_BASE = 120;
+      const RING_GAP = 90;
+      /** Each body moves along its ring by at most 0.5° per iteration. */
+      const STEP = 0.5 * (Math.PI / 180);
+      /** The chord below which two coincident bodies are pushed apart as if 1 apart. */
+      const MIN_CHORD = 1e-6;
+      
+                                                                                     
+                                                                                                                          
+                                                                                                                  
+      
+      /** Lisa `galaxy.ts:319-325` — round onto the 3-decimal grid; a coordinate that would serialize with a leading `-0` (negative zero, or anything rounding strictly between -1 and 0) is written `0`. */
+      function round3(value        )         {
+        const rounded = Math.round(value * 1000) / 1000;
+        return rounded > -1 && rounded <= 0 ? 0 : rounded;
+      }
+      
+      /** One ring radius: the eight in LANES order, then the rim rings after them. */
+      function ringRadius(lane        , rimIndex        )         {
+        const known = (LANES                     ).indexOf(lane);
+        const index = known >= 0 ? known : (LANES                     ).length + rimIndex;
+        return RING_BASE + index * RING_GAP;
+      }
+      
+      const normalize = (angle        )         => ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      
+      /**
+       * The relaxation: each body moves along its own ring only, pushed by an
+       * inverse-square repulsion from its nearest angular neighbours on that ring,
+       * the per-iteration step clamped to 0.5°. Adjacent-neighbour repulsion keeps
+       * the pass O(n) per iteration, so a 2,000-card ring stays bounded.
+       */
+      function relax(angles          , radius        )       {
+        const count = angles.length;
+        if (count < 2) return;
+        for (let iteration = 0; iteration < ITERATIONS; iteration++) {
+          const order = angles.map((angle, index) => ({ angle: normalize(angle), index })).sort((a, b) => a.angle - b.angle || a.index - b.index);
+          const push = new Array        (count).fill(0);
+          for (let slot = 0; slot < count; slot++) {
+            const mine = order[slot]                                    ;
+            const before = order[(slot - 1 + count) % count]                                    ;
+            const after = order[(slot + 1) % count]                                    ;
+            for (const other of [before, after]) {
+              if (other.index === mine.index) continue;
+              let delta = other.angle - mine.angle;
+              if (delta > Math.PI) delta -= 2 * Math.PI;
+              if (delta < -Math.PI) delta += 2 * Math.PI;
+              const chord = Math.max(2 * radius * Math.sin(Math.abs(delta) / 2), MIN_CHORD);
+              const force = 1 / (chord * chord);
+              push[mine.index] += delta >= 0 ? -force : force;
+            }
+          }
+          for (let index = 0; index < count; index++) {
+            const move = Math.max(-STEP, Math.min(STEP, push[index]          ));
+            angles[index] = (angles[index]          ) + move;
+          }
+        }
+      }
+      
+      /** The orbit of a board model (or of the view the board is built from). */
+      function orbitOf(input                       )        {
+        const board             = "banners" in input ? (input              ) : boardOf(input            , { answer: "view" });
+      
+        const rings              = [];
+        let rimIndex = 0;
+        const bodies              = [];
+        for (const column of board.columns) {
+          if (column.cards.length === 0) continue; // a ring is a lane the board holds cards on
+          const lane = column.lanes[0] ?? "";
+          const radius = ringRadius(lane, rimIndex);
+          if (!(LANES                     ).includes(lane)) rimIndex++;
+          const angles = column.cards.map((_, index) => index * GOLDEN_ANGLE);
+          relax(angles, radius);
+          const cards = column.cards.map((card, index) => {
+            const x = round3(Math.cos(angles[index]          ) * radius);
+            const y = round3(Math.sin(angles[index]          ) * radius);
+            return { cardId: card.id, lane, x, y };
+          });
+          rings.push({ lane, label: column.label, radius, count: cards.length, cards });
+          bodies.push(...cards);
+        }
+      
+        const lines           = [];
+        for (const ring of rings) lines.push(`${ring.label}: ${ring.count} cards`);
+        for (const ring of rings) {
+          for (const card of ring.cards) lines.push(`${card.cardId} — ${ring.label}`);
+        }
+        return { rings, bodies, lines };
+      }
+      
+      exports.orbitOf = orbitOf;
+      exports.GOLDEN_ANGLE = GOLDEN_ANGLE;
+      exports.ITERATIONS = ITERATIONS;
+      exports.RING_BASE = RING_BASE;
+      exports.RING_GAP = RING_GAP;
     },
     "shared/presentation": function (module, exports) {
       /**
@@ -1329,6 +1569,106 @@ window.__ModuleLoader__.load({
       
       exports.refusalLine = refusalLine;
       exports.acceptView = acceptView;
+    },
+    "shared/window": function (module, exports) {
+      /**
+       * T047 — the window of a lane (F121-FR-020; contracts/presentation.md, plan
+       * §Performance Goals). Above the per-lane card threshold the board renders a
+       * bounded window of card nodes — at most `threshold + 2 × overscan` — and the
+       * client moves it on scroll; at or below the threshold every card is a node.
+       *
+       * `windowOf` is a pure function of the board model and the window options: it
+       * returns a NEW `BoardModel` (never a mutation of its input) whose columns hold
+       * the contiguous slice of cards around the scroll position, re-grouped by
+       * feature. Everything else of the model — banners, attention, budget, no-run —
+       * is carried over unchanged, so only the tree differs.
+       *
+       * Heights are in card rows: `scrollTop` is the first row at the top of the
+       * viewport and `viewportHeight` is how many rows are visible. The card row is a
+       * fixed height, so rows and pixels map 1:1.
+       */
+                                                                                            
+      
+                                   
+                          
+                               
+                           
+                          
+        
+      
+      /** The default per-lane threshold (F121-FR-20; contracts/presentation.md). */
+      const DEFAULT_THRESHOLD = 100;
+      const DEFAULT_OVERSCAN = 20;
+      /** The meta value must be plain decimal digits within 1..10,000. */
+      const THRESHOLD_PATTERN = /^[0-9]+$/;
+      const THRESHOLD_MIN = 1;
+      const THRESHOLD_MAX = 10_000;
+      
+      /**
+       * The lane threshold from the view route's meta string. A value outside
+       * 1..10,000 (or not plain decimal digits) falls back to 100 with exactly one
+       * log line; a missing meta falls back silently.
+       */
+      function thresholdOfMeta(meta                           , log                        )         {
+        if (meta === null || meta === undefined) return DEFAULT_THRESHOLD;
+        if (!THRESHOLD_PATTERN.test(meta)) {
+          log(`kanban: threshold meta ${JSON.stringify(meta)} is not a plain count — using ${DEFAULT_THRESHOLD}`);
+          return DEFAULT_THRESHOLD;
+        }
+        const value = Number(meta);
+        if (!Number.isInteger(value) || value < THRESHOLD_MIN || value > THRESHOLD_MAX) {
+          log(`kanban: threshold meta ${JSON.stringify(meta)} is outside ${THRESHOLD_MIN}..${THRESHOLD_MAX} — using ${DEFAULT_THRESHOLD}`);
+          return DEFAULT_THRESHOLD;
+        }
+        return value;
+      }
+      
+      /**
+       * The cards of one column inside the window, kept in COLUMN order (the
+       * contiguous slice around the scroll position), grouped by feature as the
+       * column already grouped them — each original group keeps its place and holds
+       * the members the window covers, so the groups still partition the slice.
+       */
+      function groupWithin(column             , start        , end        )              {
+        const cards = column.cards;
+        const sliced = cards.slice(Math.max(0, start), Math.max(0, end));
+        const inWindow = new Set(sliced);
+        const groups              = [];
+        for (const group of column.groups) {
+          const kept = group.cards.filter((card) => inWindow.has(card));
+          if (kept.length > 0) groups.push({ feature: group.feature, cards: kept });
+        }
+        return groups;
+      }
+      
+      /**
+       * The board as it renders at one scroll position: an equal-shape model whose
+       * windowed columns hold at most `threshold + 2 × overscan` cards each. A column
+       * at or below the threshold keeps every card. The input is never mutated.
+       */
+      function windowOf(board            , options               )             {
+        const threshold = options.threshold ?? DEFAULT_THRESHOLD;
+        const overscan = options.overscan ?? DEFAULT_OVERSCAN;
+        const scrollTop = Math.max(0, Math.trunc(options.scrollTop));
+        const viewportHeight = Math.max(0, Math.trunc(options.viewportHeight));
+        let pruned = false;
+        const columns                = board.columns.map((column) => {
+          if (column.cards.length <= threshold) return column;
+          pruned = true;
+          const start = scrollTop - overscan;
+          const end = scrollTop + viewportHeight + overscan;
+          const groups = groupWithin(column, start, end);
+          return { ...column, groups, cards: column.cards.slice(Math.max(0, start), Math.max(0, end)) };
+        });
+        return { ...board, columns, windowed: pruned };
+      }
+      
+      exports.thresholdOfMeta = thresholdOfMeta;
+      exports.windowOf = windowOf;
+      exports.DEFAULT_THRESHOLD = DEFAULT_THRESHOLD;
+      exports.DEFAULT_OVERSCAN = DEFAULT_OVERSCAN;
+      exports.THRESHOLD_MIN = THRESHOLD_MIN;
+      exports.THRESHOLD_MAX = THRESHOLD_MAX;
     },
     };
     const __cache = {};

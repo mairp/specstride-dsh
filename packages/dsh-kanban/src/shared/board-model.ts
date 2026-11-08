@@ -45,6 +45,8 @@ export type BoardModel = {
   budgetMore: number;
   noRun: boolean;
   noRunText: string;
+  /** Set by the windower (T047, `windowOf`): at least one column is windowed. A DOM-only concern. */
+  windowed?: boolean;
 };
 
 export type BoardOptions = {
