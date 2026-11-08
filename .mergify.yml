@@ -3,7 +3,7 @@ pull_request_rules:
     conditions:
       - base=main
       - -conflict
-      - check-success=ci / test
+      - check-success=test
     actions:
       merge:
         method: merge
