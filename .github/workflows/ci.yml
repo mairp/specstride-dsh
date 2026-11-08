@@ -13,4 +13,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      # The kanban package resolves its peer `@specstride/host-dsh` (this repo
+      # itself) through node_modules; link the package to itself, as a
+      # workspace/peer install would.
+      - run: |
+          mkdir -p packages/dsh-kanban/node_modules/@specstride
+          ln -sfn ../../../../ packages/dsh-kanban/node_modules/@specstride/host-dsh
       - run: npm test

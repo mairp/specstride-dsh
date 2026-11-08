@@ -11,12 +11,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const NPM = "/usr/lib/node_modules/npm/bin/npm-cli.js";
+// npm-cli.js sits under the node prefix that ships this node: <prefix>/lib/node_modules/…
+// (prefix = two levels above the node binary). Fall back to `npm` from the PATH.
+const NPM = (() => {
+  const candidate = join(dirname(dirname(process.execPath)), "lib", "node_modules", "npm", "bin", "npm-cli.js");
+  if (existsSync(candidate)) return candidate;
+  const execpath = process.env.npm_execpath;
+  if (execpath && execpath.endsWith("npm-cli.js")) return execpath;
+  return "npm"; // resolved from PATH by execFileSync
+})();
 
 type Manifest = {
   name: string;
