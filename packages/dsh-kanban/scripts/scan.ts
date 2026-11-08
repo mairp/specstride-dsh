@@ -4,7 +4,7 @@
  *
  * Rules (the `rule` field of a finding):
  *   no-lane-assignment  a lane assigned in source; `columnOf` reads only `card.lane`
- *   css-colour          a colour-bearing property takes anything but var(--dsw-…)
+ *   css-colour          a colour-bearing property takes anything but var(--dsw-…) (or a color-mix of those only)
  *   css-selector        a selector without the `.ssk-<8 hex>` prefix, :root/html/body/*, @import, @font-face, prefers-color-scheme
  *   markup-sink         innerHTML, outerHTML, insertAdjacentHTML, dangerouslySetInnerHTML, document.write, eval, new Function
  *   nondeterminism      Math.random, Date, performance.now in src/shared/
@@ -125,8 +125,17 @@ const NAMED_COLOURS = new Set(
 );
 const DSW_VAR = /var\(\s*--dsw-[\w-]+\s*(?:,\s*var\(\s*--dsw-[\w-]+\s*\)\s*)?\)/g;
 
+/** A `color-mix(in srgb, …)` whose operands, once the `--dsw-` vars are gone, are only percentages. */
+const DSW_ONLY_MIX = /color-mix\(\s*in\s+srgb\s*,[\s\d.%,]*\)/gi;
+
 function colourProblem(value: string): string | null {
-  const rest = value.replace(DSW_VAR, " ");
+  let rest = value.replace(DSW_VAR, " ");
+  // Mixing two host tokens declares no colour of the plugin's own (the
+  // Trajectory tab's violet is one); innermost first, so nesting reduces too.
+  for (let before = ""; before !== rest; ) {
+    before = rest;
+    rest = rest.replace(DSW_ONLY_MIX, " ");
+  }
   if (/#[0-9a-f]{3,8}\b/i.test(rest)) return "hex colour";
   if (/\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i.test(rest)) return "colour function";
   if (/var\(/i.test(rest)) return "var() outside --dsw-";

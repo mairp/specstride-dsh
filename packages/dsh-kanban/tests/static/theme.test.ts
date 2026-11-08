@@ -118,3 +118,31 @@ test("rendering with a theme context is identical to rendering without one", asy
   assert.deepEqual(withTheme, withoutTheme);
   assert.ok(!clientInject.includes("theme"), "the client injects no theme service");
 });
+
+test("scan css-colour: a color-mix of host tokens passes; one with a hex operand is refused", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "kanban-mix-"));
+  mkdirSync(join(dir, "src", "client"), { recursive: true });
+  writeFileSync(
+    join(dir, "src", "client", "styles.css"),
+    [
+      ".ssk-00000000 .a { color: color-mix(in srgb, color-mix(in srgb, var(--dsw-alias-state-error-primary) 60%, var(--dsw-alias-label-primary)) 18%, var(--dsw-alias-bg-layer-1)); }",
+      ".ssk-00000000 .b { color: color-mix(in srgb, #ff0000 50%, var(--dsw-alias-bg-layer-1)); }",
+    ].join("\n"),
+  );
+  const colour = scanTree(dir).filter((f) => f.rule === "css-colour");
+  assert.equal(colour.length, 1, colour.map((f) => f.detail).join("; "));
+  assert.equal(colour[0]!.line, 2);
+});
+
+test("styles.css is balanced: every rule block closes (one stray brace swallows the whole sheet in the browser)", () => {
+  const body = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  let depth = 0;
+  for (const ch of body) {
+    if (ch === "{") depth += 1;
+    if (ch === "}") depth -= 1;
+    assert.ok(depth >= 0 && depth <= 1, "no nested or unopened block");
+  }
+  assert.equal(depth, 0);
+});

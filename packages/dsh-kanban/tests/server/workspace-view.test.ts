@@ -128,3 +128,67 @@ test("the route fallback answers view, then unchanged for the same cursor, and u
   assert.equal(fromWorkspace(dir, token).kind, "unchanged");
   assert.equal(fromWorkspace(mkdtempSync(join(tmpdir(), "kanban-empty-")), null).kind, "unavailable");
 });
+
+/* ------------------------------ the TS engine (0.1.x) ------------------------------ */
+
+const WS_ID = "002a79217166a359f229bed6407c7301";
+const CTRL = `/home/.specstride/workspaces/${WS_ID.slice(0, 16)}`;
+const tsev = (type: string, at: string, data: Record<string, unknown> = {}) => JSON.stringify({ type, at, data });
+const tsFiles = (events: string[], extra: Record<string, string> = {}): Record<string, string> => ({
+  "/w/specs/f1/tasks.md": TASKS.replace(/- \[x\]/g, "- [ ]"),
+  "/w/.specstride/workspace.json": JSON.stringify({ workspaceId: WS_ID }),
+  [`${CTRL}/features/f1/loop.json`]: JSON.stringify({ runId: "run-1" }),
+  [`${CTRL}/runs/run-1/events.jsonl`]: events.join("\n"),
+  ...extra,
+});
+const readTs = (files: Record<string, string>) => readWorkspaceView("/w", memFs(files), NOW, "/home");
+
+test("TS engine: a run that died in phase 1 with a failed pipeline record → phase 1 failed, the rest queued, one attention item", () => {
+  const files = tsFiles(
+    [
+      tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 1, title: "Setup" }),
+      tsev("attempt.started", "2026-11-08T11:00:00.100Z", { phase: 1 }),
+      tsev("iter_error", "2026-11-08T11:00:01.000Z", { subtype: "agent_error" }),
+      tsev("iter_error", "2026-11-08T11:00:03.000Z", { subtype: "agent_error" }),
+    ],
+    { "/w/.specstride/state/pipeline/f1/runs/launch-a/state.json": JSON.stringify({ state: "failed", exit_reason: "exit:3", updated_at: Date.parse("2026-11-08T11:00:04.000Z") }) },
+  );
+  const view = readTs(files);
+  assert.equal(lanesOf(view, "f1"), "1:failed 2:queued 3:queued");
+  assert.equal(view.state, "idle");
+  assert.equal(view.attention.length, 1);
+  assert.equal(view.attention[0]!.kind, "blocked-on-human");
+  assert.match(view.attention[0]!.oneLine, /^f1: run ended failed in phase 1 \(Setup\) — exit:3; agent_error ×2$/);
+  assert.match(view.attention[0]!.need ?? "", /launch-a\/pipeline\.log/);
+  assert.ok(acceptView(view).ok);
+});
+
+test("TS engine: a live run in the critic is reviewing; an approval record and phase.ended approved approve", () => {
+  const files = tsFiles(
+    [
+      tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 1, title: "Setup" }),
+      tsev("phase.ended", "2026-11-08T11:20:00.000Z", { phase: 1, outcome: "approved" }),
+      tsev("phase.started", "2026-11-08T11:21:00.000Z", { phase: 2, title: "Core" }),
+      tsev("verification.started", "2026-11-08T11:40:00.000Z"),
+      tsev("critic.started", "2026-11-08T11:50:00.000Z"),
+    ],
+    { "/w/.specstride/state/pipeline/f1/runs/launch-a/state.json": JSON.stringify({ state: "running", updated_at: Date.parse("2026-11-08T11:00:00.000Z") }) },
+  );
+  const view = readTs(files);
+  assert.equal(lanesOf(view, "f1"), "1:approved 2:reviewing 3:queued");
+  assert.equal(view.state, "running");
+  assert.deepEqual(view.attention, []);
+  const approved = readTs({ ...files, [`${CTRL}/features/f1/approvals/phase-3.json`]: "{}" });
+  assert.equal(lanesOf(approved, "f1"), "1:approved 2:reviewing 3:approved");
+});
+
+test("TS engine: phase.ended blocked → blocked; stopped pipeline → paused; the newer bash run wins over an older TS run", () => {
+  const blocked = readTs(tsFiles([tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 2 }), tsev("phase.ended", "2026-11-08T11:05:00.000Z", { phase: 2, outcome: "blocked" }), tsev("run.ended", "2026-11-08T11:05:01.000Z", { endCause: "normal" })]));
+  assert.equal(lanesOf(blocked, "f1"), "1:queued 2:blocked 3:queued");
+  const stopped = readTs(tsFiles([tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 1 })], { "/w/.specstride/state/pipeline/f1/runs/l/state.json": JSON.stringify({ state: "stopped", updated_at: Date.parse("2026-11-08T11:01:00.000Z") }) }));
+  assert.equal(lanesOf(stopped, "f1"), "1:paused 2:queued 3:queued");
+  const newerBash = readTs(tsFiles([tsev("phase.started", "2026-11-08T10:00:00.000Z", { phase: 1 })], {
+    "/w/.specstride/events.jsonl": ev({ event: "phase_start", feature: "f1", run_id: "b", phase: "3", time: "2026-11-08T11:59:00Z" }),
+  }));
+  assert.equal(lanesOf(newerBash, "f1"), "1:queued 2:queued 3:proposing");
+});
