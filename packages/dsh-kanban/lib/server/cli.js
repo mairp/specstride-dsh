@@ -102,6 +102,16 @@ function runShim(cwd        , shimPath        , argv          , idleLimitMs     
     });
     const finish = (code               ) => {
       stopTimers();
+      // The child itself may already be gone; the group kill still reaches any
+      // grandchild it forked into the same process group — none is left behind,
+      // whatever way this call ended (F121-FR-018).
+      if (child.pid !== undefined && process.platform !== "win32") {
+        try {
+          process.kill(-child.pid, "SIGTERM");
+        } catch {
+          // the group is already gone
+        }
+      }
       resolve({ code, stdout: Buffer.concat(chunks).toString("utf8"), capped });
     };
     child.on("error", () => finish(null));

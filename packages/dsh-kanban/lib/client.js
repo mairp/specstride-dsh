@@ -42,6 +42,15 @@ window.__ModuleLoader__.load({
         return (ctx?.timer                      ) ?? globalThis;
       }
       
+                                                                                                                                    
+      
+      /** The view token of this page load, from the index tap's meta (R5, T-41). */
+      function tokenOf(doc        )                {
+        const meta = doc?.querySelector?.(`meta[name="specstride-view-token"]`);
+        const value = meta?.getAttribute?.("content");
+        return typeof value === "string" && value !== "" ? value : null;
+      }
+      
       function openPane(ctx     , sessionId        , reactOf                            )       {
         const timers = timersOf(ctx);
         const pane = ctx.layout?.({
@@ -81,6 +90,7 @@ window.__ModuleLoader__.load({
             render: (tree) => show(tree),
             stale: line,
             message: line,
+            token: tokenOf(doc),
           },
           reactOf,
         );
@@ -146,6 +156,9 @@ window.__ModuleLoader__.load({
       /** The client limit (contracts/view-route.md): no answer is awaited past 35 s. */
       const CLIENT_LIMIT_MS = 35_000;
       const BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
+      /** The view token header (T-41); the same name the server half's meta carries. */
+      const TOKEN_HEADER = "specstride-view-token";
+      const TOKEN_META_PATTERN = new RegExp(`<meta\\s+name="${TOKEN_HEADER}"\\s+content="([A-Za-z0-9_-]{43})"\\s*/*>`);
       
                                                                                                                              
                                                                          
@@ -162,7 +175,8 @@ window.__ModuleLoader__.load({
                           
                        
                                                                                        
-                                                                                                        
+                                                                                                                
+                                                                                 
                                                                          
                                                         
                                                                                            
@@ -170,6 +184,8 @@ window.__ModuleLoader__.load({
                                                                                
                                          
                          
+                                                                                
+                              
         
       
                                                    
@@ -189,6 +205,10 @@ window.__ModuleLoader__.load({
         let backoffIndex = 0;
         let lastGoodAt                = null;
         let forbiddenRun = false;
+        // The view token of this page load (T-41). Voided by `run-changed`/`forbidden`,
+        // refreshed from a fresh index fetch before the next view request.
+        let token                = typeof options.token === "string" ? options.token : null;
+        let needToken = false; // set by `run-changed`/`forbidden`: the next cycle fetches a fresh index
       
         const schedule = (ms        )       => {
           if (disposed) return;
@@ -247,6 +267,7 @@ window.__ModuleLoader__.load({
             }
             case "run-changed": {
               cursor = null; // the token of the old run is void; ask again without a cursor
+              needToken = true; // a fresh index brings a fresh token (R5)
               schedule(0);
               return;
             }
@@ -254,6 +275,7 @@ window.__ModuleLoader__.load({
               if (forbiddenRun) return fail(); // a second forbidden in a row is an outage
               forbiddenRun = true;
               cursor = null;
+              needToken = true;
               schedule(0);
               return;
             }
@@ -270,15 +292,33 @@ window.__ModuleLoader__.load({
           if (disposed) return;
           const mine = ++generation;
           controller = new AbortController();
-          const url = `${VIEW_PATH}?session=${encodeURIComponent(options.sessionId)}${cursor === null ? "" : `&cursor=${encodeURIComponent(cursor)}`}`;
-          limitTimer = setTimeout(() => {
-            if (mine !== generation || disposed) return;
-            controller?.abort();
-            markStale();
-            schedule(nextBackoff());
-          }, limitMs);
           try {
-            const response = await options.fetch(url, { signal: controller.signal });
+            if (needToken) {
+              needToken = false;
+              const fresh = await options.fetch("/", { signal: controller.signal, cache: "no-store" });
+              if (mine !== generation || disposed) return;
+              const html = typeof fresh.text === "function" ? await fresh.text() : "";
+              if (mine !== generation || disposed) return;
+              const match = TOKEN_META_PATTERN.exec(html);
+              token = match === null ? null : (match[1] ?? null);
+              if (token === null) {
+                // No token meta in the page: the server half is not there — the
+                // unavailable line, no retry (contracts/view-route.md).
+                options.message?.("Kanban unavailable — run /specstride-doctor");
+                return;
+              }
+            }
+            const url = `${VIEW_PATH}?session=${encodeURIComponent(options.sessionId)}${cursor === null ? "" : `&cursor=${encodeURIComponent(cursor)}`}`;
+            limitTimer = setTimeout(() => {
+              if (mine !== generation || disposed) return;
+              controller?.abort();
+              markStale();
+              schedule(nextBackoff());
+            }, limitMs);
+            const response = await options.fetch(url, {
+              signal: controller.signal,
+              ...(token === null ? {} : { headers: { [TOKEN_HEADER]: token } }),
+            });
             if (mine !== generation || disposed) return;
             const value = await response.json();
             if (mine !== generation || disposed) return;
@@ -323,6 +363,7 @@ window.__ModuleLoader__.load({
                                                                         
                                         
                                           
+                                
          ,
         reactOf                            ,
       )       {
@@ -333,6 +374,7 @@ window.__ModuleLoader__.load({
           render: (view) => options.render(boardTree(view         ), reactOf()),
           stale: options.stale,
           message: options.message,
+          token: options.token,
         });
       }
       
@@ -341,6 +383,7 @@ window.__ModuleLoader__.load({
       exports.VIEW_PATH = VIEW_PATH;
       exports.POLL_MS = POLL_MS;
       exports.CLIENT_LIMIT_MS = CLIENT_LIMIT_MS;
+      exports.TOKEN_HEADER = TOKEN_HEADER;
     },
     "client/react-adapter": function (module, exports) {
       /**

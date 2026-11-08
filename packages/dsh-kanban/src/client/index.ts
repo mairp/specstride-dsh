@@ -30,6 +30,15 @@ function timersOf(ctx: Ctx | undefined): Timers {
   return (ctx?.timer as Timers | undefined) ?? globalThis;
 }
 
+type Docish = { querySelector?: (selector: string) => { getAttribute?: (name: string) => string | null } | null } | undefined;
+
+/** The view token of this page load, from the index tap's meta (R5, T-41). */
+function tokenOf(doc: Docish): string | null {
+  const meta = doc?.querySelector?.(`meta[name="specstride-view-token"]`);
+  const value = meta?.getAttribute?.("content");
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
 function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefined): Pane {
   const timers = timersOf(ctx);
   const pane = ctx.layout?.({
@@ -69,6 +78,7 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
       render: (tree) => show(tree),
       stale: line,
       message: line,
+      token: tokenOf(doc),
     },
     reactOf,
   );

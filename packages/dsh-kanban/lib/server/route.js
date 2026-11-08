@@ -1,13 +1,16 @@
 /**
- * T023 (contracts/view-route.md; F121-FR-004, F121-FR-007, F121-FR-015) — the
- * first route answers. The auth gate, token checks and fail-open land later
- * (US4/US5); this pass wires `GET ?session=` → workspace → `status --json` →
- * acceptance → `view` | `no-run` | `refused-schema` | `unavailable`, always as
- * JSON with the three hardening headers.
+ * T040 (contracts/view-route.md "Request"; F121-FR-004, F121-FR-007,
+ * F121-FR-015, F121-FR-017) — the route handler. The checks run in the
+ * contract's order, and every refusal answers before any CLI call:
+ * method → path → token → session/cursor → busy → run binding → workspace.
+ * `GET ?session=` → workspace → `status --json`/`wait --until-change` →
+ * acceptance → `view` | `unchanged` | `no-run` | `refused-schema` |
+ * `unavailable` | `run-changed`, always JSON with the hardening headers.
  */
 import { resolveWorkspace, SESSION_ID_PATTERN,              } from "./workspace.js";
 import { status, wait,                                    } from "./cli.js";
 import { refusalLine } from "../shared/view-read.js";
+import { TOKEN_HEADER,                } from "./token.js";
 
 export const VIEW_PATH = "/specstride/view";
 export const UNAVAILABLE_LINE = "Kanban unavailable — run /specstride-doctor";
@@ -42,6 +45,8 @@ function mapResult(result                           )        {
   }
 }
 
+                                   
+
 /** The answer for one session query: workspace, then one CLI call, then the mapping. */
 export async function answerSession(ctx         , sessionId        , cursor                )                 {
   const resolved = resolveWorkspace(ctx, sessionId);
@@ -50,20 +55,49 @@ export async function answerSession(ctx         , sessionId        , cursor     
   return mapResult(cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd));
 }
 
-                                                    
+                                                                                                             
 
-/** The route handler: method, path, then the session and cursor queries. */
-export function createViewHandler(ctx         )                                          {
+function headerValue(request            , name        )                     {
+  const value = request.headers?.[name];
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
+/** The route handler: the contract's check order, then the session query. */
+export function createViewHandler(ctx         , gate            )                                          {
   return async (request) => {
+    // 1. Method (T-39: GET only).
     if ((request.method ?? "GET").toUpperCase() !== "GET") {
       return { status: 405, body: { answer: "method-not-allowed" }, headers: { ...HEADERS, Allow: "GET" } };
     }
+    // 2. Path (the exact route guarantees it; checked again).
     const url = new URL(request.url ?? `http://127.0.0.1${VIEW_PATH}`);
     if (url.pathname !== VIEW_PATH) return reply(404, { answer: "bad-request" });
+    // 3. Token (T-41: admitted, live, never evicted) — before anything else runs.
+    const token = headerValue(request, TOKEN_HEADER);
+    if (gate !== undefined && !gate.admit(token)) return reply(403, { answer: "forbidden" });
+    // 4. The queries.
     const session = url.searchParams.get("session") ?? "";
     if (!SESSION_ID_PATTERN.test(session)) return reply(400, { answer: "bad-request" });
     const cursor = url.searchParams.get("cursor");
     if (cursor !== null && !CURSOR_PATTERN.test(cursor)) return reply(400, { answer: "bad-request" });
-    return answerSession(ctx, session, cursor);
+    if (gate === undefined) return answerSession(ctx, session, cursor);
+
+    // One CLI call per token at a time (F121-FR-018).
+    const live = token          ;
+    if (!gate.claim(live)) return reply(429, { answer: "bad-request" });
+    try {
+      const result = await answerSession(ctx, session, cursor);
+      if (result.body.answer === "view") {
+        const runId = (result.body.view                       )?.runId;
+        if (typeof runId !== "string") return result; // a view without a run id is not a run to bind
+        if (gate.bind(live, runId) === "run-changed") return reply(409, { answer: "run-changed" });
+        gate.keepNewest(live, result.body.view); // the only view state kept per page (F121-FR-018)
+      }
+      return result;
+    } finally {
+      gate.release(live);
+    }
   };
 }
