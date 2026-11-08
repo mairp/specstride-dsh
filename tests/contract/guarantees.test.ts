@@ -57,7 +57,7 @@ test("guarantee 1 — a host package reads no file of the product and names no p
   // the doctor's generated appendix is excluded — see
   // `referenceClosureFindingsForComposed` in src/gates.ts).
   const appendix = dshDoctorAppendixLines(
-    join(ROOT, "specs", "120-host-dsh", "contracts", "doctor-host-checks.md"),
+    join(ROOT, "contracts", "doctor-host-checks.md"),
     "npm install -g specstride@0.1.0",
   );
   for (const spelling of readdirSync(SKILLS)) {

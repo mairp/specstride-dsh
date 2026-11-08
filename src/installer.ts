@@ -62,7 +62,7 @@ if (INSTALLS_OR_UPDATES_THE_CLI !== false) {
 
 const CLOSED_SETS = JSON.parse(
   readFileSync(
-    join(ROOT, "specs", "120-host-dsh", "contracts", "closed-sets.json"),
+    join(ROOT, "contracts", "closed-sets.json"),
     "utf8",
   ),
 ) as { proposedByFeature: { id: string; members: { scope: string; root: string }[] }[] };

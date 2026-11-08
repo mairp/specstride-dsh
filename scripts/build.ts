@@ -73,7 +73,7 @@ if (protocol?.min !== 1 || protocol?.max !== 1) {
 // specs/120-host-dsh/contracts/closed-sets.json (set dsh-skill-spellings).
 const closedSets = JSON.parse(
   readFileSync(
-    join(ROOT, "specs", "120-host-dsh", "contracts", "closed-sets.json"),
+    join(ROOT, "contracts", "closed-sets.json"),
     "utf8",
   ),
 ) as {
@@ -117,7 +117,7 @@ for (const artifact of artifacts) {
   const content =
     logicalId === "doctor"
       ? `${artifact.content}${dshDoctorAppendixLines(
-          join(ROOT, "specs", "120-host-dsh", "contracts", "doctor-host-checks.md"),
+          join(ROOT, "contracts", "doctor-host-checks.md"),
           dshInstallCommand(engineVersion),
         ).join("\n")}\n`
       : artifact.content;
@@ -133,7 +133,7 @@ for (const artifact of artifacts) {
   const appendixText =
     logicalId === "doctor"
       ? dshDoctorAppendixLines(
-          join(ROOT, "specs", "120-host-dsh", "contracts", "doctor-host-checks.md"),
+          join(ROOT, "contracts", "doctor-host-checks.md"),
           dshInstallCommand(engineVersion),
         ).join("\n")
       : "";

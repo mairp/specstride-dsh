@@ -76,7 +76,7 @@ test("an unknown logical id refuses (F120-FR-001)", () => {
 
 test("spellings match the closed set line-for-line", () => {
   const closed = JSON.parse(
-    readFileSync(join(ROOT, "specs/120-host-dsh/contracts/closed-sets.json"), "utf8"),
+    readFileSync(join(ROOT, "contracts/closed-sets.json"), "utf8"),
   ) as {
     proposedByFeature: { id: string; members: { logicalId: string; spelling: string }[] }[];
   };

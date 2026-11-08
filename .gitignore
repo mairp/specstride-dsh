@@ -21,3 +21,13 @@ node_modules/
 vendor/core/
 tmp/
 .build/
+
+# Spec corpus and pipeline artifacts stay local (owner, 2026-11-08): the Spec Kit
+# specs, the Specstride / Mixture of Loops contracts, test plans, prompts and
+# research that drove the build. The runtime contracts the build reads live in
+# contracts/ (tracked); specs/120-host-dsh/contracts/ links to them locally.
+specs/
+.mixture-of-loops/
+testautomation/
+prompts/
+research/

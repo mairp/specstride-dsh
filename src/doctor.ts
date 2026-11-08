@@ -57,7 +57,7 @@ import { dshInstallCommand } from "./shim.ts";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLOSED_SETS = JSON.parse(
   readFileSync(
-    join(ROOT, "specs", "120-host-dsh", "contracts", "closed-sets.json"),
+    join(ROOT, "contracts", "closed-sets.json"),
     "utf8",
   ),
 ) as { proposedByFeature: { id: string; members: string[] }[] };

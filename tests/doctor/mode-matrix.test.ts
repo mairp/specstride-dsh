@@ -53,7 +53,7 @@ function observationOf(
 test("the six checks are the closed set, in its order; only cli-found is launch-blocking", () => {
   const closedSet = JSON.parse(
     readFileSync(
-      join(ROOT, "specs", "120-host-dsh", "contracts", "closed-sets.json"),
+      join(ROOT, "contracts", "closed-sets.json"),
       "utf8",
     ),
   ) as {
