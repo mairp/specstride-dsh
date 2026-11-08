@@ -17,8 +17,9 @@
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
-                                                                 
+                                                                                
 
                       
                                               
@@ -141,6 +142,12 @@ export function parseEvents(text        )          {
                         
                         
                     
+                                                                                                 
+                        
+                                                              
+                      
+                                                  
+                      
   
 
 /** The facts of a feature's newest run; events without a feature join by run id. */
@@ -207,7 +214,7 @@ export function featureCards(feature        , phases                  , approved
         lane = run.activity ?? "proposing";
         stale = run.lastAt !== null && now - run.lastAt > STALE_AFTER_MS;
       } else {
-        lane = endLane(run.outcome);
+        lane = run.endLane ?? endLane(run.outcome);
       }
     }
     return {
@@ -220,6 +227,217 @@ export function featureCards(feature        , phases                  , approved
       title: phase.title,
     };
   });
+}
+
+/* ------------------------- the TS engine (`specstride` 0.1.x) ------------------------- */
+
+/**
+ * The control roots the TS engine may keep a workspace's records under
+ * (layout `<control>`): `~/.specstride/workspaces/<id[0:16]>` as observed, and
+ * the full-id and XDG forms the layout names.
+ */
+export function controlRoots(workspaceId        , home        , env                                     = process.env)           {
+  const xdg = env.XDG_STATE_HOME ?? join(home, ".local", "state");
+  const ids = [...new Set([workspaceId.slice(0, 16), workspaceId])];
+  return [
+    ...ids.map((id) => join(home, ".specstride", "workspaces", id)),
+    ...ids.map((id) => join(xdg, "specstride", "workspaces", id)),
+  ];
+}
+
+                                                                                  
+
+export function parseTsEvents(text        )            {
+  const out            = [];
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    try {
+      const raw = JSON.parse(line)                           ;
+      if (typeof raw.type !== "string") continue;
+      const at = typeof raw.at === "string" ? Date.parse(raw.at) : typeof raw.ts === "string" ? Date.parse(raw.ts) : Number.NaN;
+      const data = typeof raw.data === "object" && raw.data !== null ? (raw.data                           ) : {};
+      out.push({ type: raw.type, at: Number.isFinite(at) ? at : null, data });
+    } catch {
+      // a torn or foreign line is skipped
+    }
+  }
+  return out;
+}
+
+const num = (v         )                =>
+  typeof v === "number" && Number.isInteger(v) ? v : typeof v === "string" && /^\d+$/.test(v) ? Number.parseInt(v, 10) : null;
+
+/** `phase.ended.outcome` (closed set 273; unknown reads as `halted`) → the lane it leaves. */
+function phaseOutcomeLane(outcome         )              {
+  switch (outcome) {
+    case "approved":
+      return null;
+    case "blocked":
+      return "blocked";
+    case "stopped":
+      return "paused";
+    default:
+      return "failed";
+  }
+}
+
+/** The facts of one TS-engine run, from its event stream. */
+export function tsRunFacts(events                    )                                             {
+  const facts                                             = {
+    ended: false, outcome: null, currentPhase: null, activity: null, lastAt: null, done: new Set(), endLane: null, why: null, errors: new Map(),
+  };
+  for (const e of events) {
+    if (e.at !== null) facts.lastAt = e.at;
+    const phase = num(e.data.phase);
+    switch (e.type) {
+      case "phase.started":
+        if (phase !== null) facts.currentPhase = phase;
+        facts.activity = "proposing";
+        facts.endLane = null;
+        break;
+      case "attempt.started":
+      case "pass.started":
+      case "iter_start":
+      case "run.resumed":
+      case "unblocked":
+      case "yield.ended":
+        facts.activity = "proposing";
+        break;
+      case "verification.started":
+      case "check.started":
+      case "job.started":
+        facts.activity = "verifying";
+        break;
+      case "critic.started":
+      case "critic.call":
+      case "verdict.recorded":
+        facts.activity = "reviewing";
+        break;
+      case "run.paused":
+      case "yield.started":
+        facts.activity = "paused";
+        break;
+      case "blocked":
+        facts.activity = "blocked";
+        break;
+      case "iter_error": {
+        const kind = typeof e.data.subtype === "string" ? e.data.subtype : typeof e.data.reason === "string" ? e.data.reason : "error";
+        facts.errors.set(kind, (facts.errors.get(kind) ?? 0) + 1);
+        break;
+      }
+      case "phase.ended": {
+        const n = phase ?? facts.currentPhase;
+        if (e.data.outcome === "approved") {
+          if (n !== null) facts.done.add(n);
+          facts.activity = null;
+        } else {
+          facts.endLane = phaseOutcomeLane(e.data.outcome);
+          facts.why = `phase ${typeof e.data.outcome === "string" ? e.data.outcome : "halted"}`;
+        }
+        break;
+      }
+      case "run.ended":
+        facts.ended = true;
+        facts.outcome = typeof e.data.endCause === "string" ? e.data.endCause : "crash";
+        break;
+    }
+  }
+  return facts;
+}
+
+                                                                                            
+
+/** The newest pipeline record of a feature (`.specstride/state/pipeline/<f>/runs/<launch>/state.json`). */
+function pipelineEnd(fs        , cwd        , feature        )                     {
+  const runs = join(cwd, ".specstride", "state", "pipeline", feature, "runs");
+  let best                     = null;
+  for (const launch of fs.list(runs)) {
+    const raw = fs.read(join(runs, launch, "state.json"));
+    if (raw === null) continue;
+    try {
+      const rec = JSON.parse(raw)                                                                    ;
+      if (typeof rec.state !== "string" || rec.state === "dry-run") continue;
+      const at = typeof rec.updated_at === "number" ? rec.updated_at : null;
+      if (best === null || (at ?? 0) > (best.at ?? 0)) {
+        best = { state: rec.state, reason: typeof rec.exit_reason === "string" ? rec.exit_reason : null, at, log: join(runs, launch, "pipeline.log") };
+      }
+    } catch {
+      // a torn record is skipped
+    }
+  }
+  return best;
+}
+
+                                                                                                                                   
+
+/** Everything the TS engine recorded for one feature. */
+function tsFeature(fs        , cwd        , roots                   , feature        )            {
+  const approvals = new Set        ();
+  let run                   = null;
+  let size = 0;
+  let count = 0;
+  for (const root of roots) {
+    const dir = join(root, "features", feature);
+    if (!fs.exists(dir)) continue;
+    for (const name of fs.list(join(dir, "approvals"))) {
+      const match = /^phase-(\d+)\.json$/.exec(name);
+      if (match !== null) approvals.add(Number.parseInt(match[1]          , 10));
+    }
+    const loop = fs.read(join(dir, "loop.json"));
+    let runId                = null;
+    try {
+      const id = loop === null ? null : (JSON.parse(loop)                       ).runId;
+      runId = typeof id === "string" && /^[\w.-]+$/.test(id) ? id : null;
+    } catch {
+      runId = null;
+    }
+    if (runId !== null) {
+      const path = join(root, "runs", runId, "events.jsonl");
+      const events = parseTsEvents(tailText(fs.read(path)));
+      if (events.length > 0) {
+        run = tsRunFacts(events);
+        size += fs.size(path);
+        count += events.length;
+      }
+    }
+    break;
+  }
+  if (run !== null && !run.ended) {
+    const end = pipelineEnd(fs, cwd, feature);
+    // The pipeline record outlives an engine that died before `run.ended`.
+    if (end !== null && end.state !== "running" && (end.at === null || run.lastAt === null || end.at >= run.lastAt)) {
+      run.ended = true;
+      run.outcome = end.state;
+      run.log = end.log;
+      if (run.endLane === null || run.endLane === undefined) run.endLane = end.state === "stopped" ? "paused" : end.state === "completed" ? null : "failed";
+      run.why = [run.why, end.reason].filter((x) => x !== null && x !== undefined).join(", ") || null;
+      if (end.at !== null && (run.lastAt === null || end.at > run.lastAt)) run.lastAt = end.at;
+    }
+  }
+  return { run, approvals, size, count };
+}
+
+const TEXT_CAP = 240;
+const cap = (text        )         => {
+  const bytes = Buffer.from(text, "utf8");
+  return bytes.length <= TEXT_CAP ? text : `${bytes.subarray(0, TEXT_CAP - 3).toString("utf8").replace(/\uFFFD+$/, "")}...`;
+};
+
+/** The one attention item of a feature whose latest run ended failed or blocked. */
+function endedAttention(feature        , cards                          , run                                             )                       {
+  const stuck = cards.find((c) => c.lane === "failed" || c.lane === "blocked");
+  if (!run.ended || stuck === undefined) return null;
+  const errors = [...(run.errors ?? new Map()).entries()].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k));
+  const why = [run.why, ...errors].filter((x) => typeof x === "string" && x !== "").join("; ");
+  const where = stuck.phase === null ? "" : ` in phase ${stuck.phase}${stuck.title === "" ? "" : ` (${stuck.title})`}`;
+  return {
+    kind: "blocked-on-human",
+    key: `${feature}#run`,
+    since: run.lastAt === null ? null : new Date(run.lastAt).toISOString(),
+    oneLine: cap(`${feature}: run ended ${stuck.lane}${where}${why === "" ? "" : ` — ${why}`}`),
+    need: cap(run.log ? `read ${run.log}, fix the cause, then relaunch` : "read the run log, fix the cause, then relaunch"),
+    next: "relaunch",
+  };
 }
 
 function workspaceIdOf(fs        , cwd        )         {
@@ -243,10 +461,15 @@ function tailText(text               )         {
 }
 
 /** The board of the workspace at `cwd`, or a `none` view when it holds no phased spec. */
-export function readWorkspaceView(cwd        , fs         = nodeFs, now         = Date.now())                             {
+export function readWorkspaceView(cwd        , fs         = nodeFs, now         = Date.now(), home         = homedir())                             {
   const eventsPath = join(cwd, ".specstride", "events.jsonl");
   const events = parseEvents(tailText(fs.read(eventsPath)));
+  const workspaceId = workspaceIdOf(fs, cwd);
+  const roots = controlRoots(workspaceId, home);
   const cards                  = [];
+  const attention                  = [];
+  let tsSize = 0;
+  let tsCount = 0;
   for (const feature of fs.list(join(cwd, "specs")).sort()) {
     const tasks = fs.read(join(cwd, "specs", feature, "tasks.md"));
     if (tasks === null) continue;
@@ -257,7 +480,13 @@ export function readWorkspaceView(cwd        , fs         = nodeFs, now         
       const match = /^GATE(\d+)-APPROVED$/.exec(name);
       if (match !== null) gates.add(Number.parseInt(match[1]          , 10));
     }
-    const run = latestRun(events, feature);
+    const ts = tsFeature(fs, cwd, roots, feature);
+    for (const n of ts.approvals) gates.add(n);
+    tsSize += ts.size;
+    tsCount += ts.count;
+    const bash = latestRun(events, feature);
+    // The newer of the two engines' runs speaks for the feature.
+    const run = ts.run !== null && (bash === null || (ts.run.lastAt ?? 0) >= (bash.lastAt ?? 0)) ? ts.run : bash;
     const touched = run !== null || gates.size > 0 || phases.some((p) => p.ticked > 0);
     if (!touched) {
       // A feature nothing has started yet is ONE queued card, not one per phase.
@@ -272,13 +501,17 @@ export function readWorkspaceView(cwd        , fs         = nodeFs, now         
       });
       continue;
     }
-    cards.push(...featureCards(feature, phases, gates, run, now));
+    const mine = featureCards(feature, phases, gates, run, now);
+    cards.push(...mine);
+    const item = run === null ? null : endedAttention(feature, mine, run);
+    if (item !== null) attention.push(item);
   }
   const live = cards.some((c) => (c.lane === "proposing" || c.lane === "verifying" || c.lane === "reviewing") && c.flags.stale !== true);
   const state = cards.length === 0 ? "none" : live ? "running" : "idle";
   const lanes = WORKSPACE_LANES.map((lane) => ({ lane, cards: cards.filter((c) => c.lane === lane).map((c) => c.id) }));
-  const signature = createHash("sha256").update(JSON.stringify(cards.map((c) => [c.id, c.lane, c.flags.stale]))).digest("hex");
-  const workspaceId = workspaceIdOf(fs, cwd);
+  const signature = createHash("sha256")
+    .update(JSON.stringify([cards.map((c) => [c.id, c.lane, c.flags.stale]), attention.map((a) => [a.key, a.oneLine])]))
+    .digest("hex");
   return {
     schema: "specstride.view/1",
     now: new Date(now).toISOString(),
@@ -291,12 +524,12 @@ export function readWorkspaceView(cwd        , fs         = nodeFs, now         
     cards,
     lanes,
     laneTable: { id: "workspace-reader", version: "1" },
-    attention: [],
+    attention,
     attentionOmitted: 0,
     budget: [],
     budgetOmitted: 0,
     phases: [],
-    cursor: { offset: fs.size(eventsPath), lastSeq: events.length },
+    cursor: { offset: fs.size(eventsPath) + tsSize, lastSeq: events.length + tsCount },
     signature: { token: signature },
   };
 }
