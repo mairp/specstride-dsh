@@ -1,0 +1,12 @@
+pull_request_rules:
+  - name: automatic merge when CI passes
+    conditions:
+      - base=main
+      - -conflict
+      - check-success=ci / test
+    actions:
+      merge:
+        method: merge
+        strict: false
+      delete_head_branch:
+        force: false
