@@ -71,6 +71,17 @@ export const NO_FEATURE_LABEL = "no feature";
  * the four attributes, so a test can deep-equal them; the text is the title,
  * inserted as text (F121-FR-012).
  */
+/**
+ * The card's one line. A titled card (the workspace reader's) sits under its
+ * feature's group header, so it reads `phase N — <title>` (or the title alone
+ * for a feature-level card); an untitled card keeps `<feature> · phase N`.
+ */
+function cardText(card: ViewCard, feature: string, phase: string): string {
+  const title = (card as { title?: unknown }).title;
+  if (typeof title !== "string" || title === "") return `${feature} · phase ${phase}`;
+  return card.phase === null ? title : `phase ${phase} — ${title}`;
+}
+
 export function cardNode(card: ViewCard): Node {
   const feature = card.feature === null ? NO_FEATURE_LABEL : card.feature;
   const phase = card.phase === null ? "?" : String(card.phase);
@@ -88,7 +99,7 @@ export function cardNode(card: ViewCard): Node {
     "data-lane": card.lane,
     "data-rule-id": card.ruleId,
     "data-feature": card.feature ?? "",
-  }, [txt("span", {}, `${feature} · phase ${phase}`), ...flags]);
+  }, [txt("span", {}, cardText(card, feature, phase)), ...flags]);
 }
 
 const boardCard = (card: ViewCard): BoardCard => ({ ...card, node: cardNode(card) });

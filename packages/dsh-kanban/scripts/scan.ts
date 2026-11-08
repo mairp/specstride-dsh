@@ -79,9 +79,16 @@ function columnOfBody(code: string): { body: string; line: number } | null {
   return { body: code.slice(from, close + 1), line: code.slice(0, from).split("\n").length };
 }
 
+/** Server files that build a view (lanes included); exempt from no-lane-assignment only. */
+export const VIEW_PRODUCERS = ["src/server/workspace-view.ts", "lib/server/workspace-view.js"] as const;
+
 function scanLanes(file: string, text: string, root: string): Finding[] {
   const path = relative(root, file).split(sep).join("/");
   if (path.includes("src/shared/generated/")) return [];
+  // The workspace reader is a view PRODUCER (it stands in for the engine when
+  // none answers), so it assigns lanes by design. The rule still holds for every
+  // consumer: the client, the shared board model and the rest of the server.
+  if (VIEW_PRODUCERS.some((producer) => path.endsWith(producer))) return [];
   const code = stripComments(text);
   const found: Finding[] = [];
   const cases = new RegExp(`\\bcase\\s+["'\`](?:${LANES.join("|")})["'\`]\\s*:`);

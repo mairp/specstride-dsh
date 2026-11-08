@@ -9,6 +9,7 @@
  */
 import { resolveWorkspace, SESSION_ID_PATTERN,              } from "./workspace.js";
 import { status, wait,                                    } from "./cli.js";
+import { readerCursor, readWorkspaceView } from "./workspace-view.js";
 import { refusalLine } from "../shared/view-read.js";
 import { TOKEN_HEADER,                } from "./token.js";
 
@@ -52,7 +53,26 @@ export async function answerSession(ctx         , sessionId        , cursor     
   const resolved = await resolveWorkspace(ctx, sessionId);
   if (!resolved.ok) return reply(200, { answer: "no-run" }); // resolution failure: 0 CLI calls (F121-FR-007)
   // With a cursor the cycle is the blocking wait, then at most one status (F121-FR-004).
-  return mapResult(cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd));
+  const engine = cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd);
+  if (engine.kind !== "unavailable") return mapResult(engine);
+  // No engine answers (none on PATH, or one without a mounted `status`): read
+  // the workspace's own files instead of leaving the tab "unavailable".
+  return mapResult(fromWorkspace(resolved.cwd, cursor ?? null));
+}
+
+/** The workspace reader as a StatusResult/WaitResult; any read error is "unavailable". */
+export function fromWorkspace(cwd        , cursor               )                            {
+  try {
+    const view = readWorkspaceView(cwd);
+    // Nothing to show from the files either: keep the engine's "unavailable"
+    // (it names the doctor), as before the reader existed.
+    if (view.state === "none") return { kind: "unavailable" };
+    const token = readerCursor(view);
+    if (cursor !== null && cursor === token) return { kind: "unchanged", cursorToken: token };
+    return { kind: "view", view, cursorToken: token };
+  } catch {
+    return { kind: "unavailable" };
+  }
 }
 
                                                                                                              
