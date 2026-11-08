@@ -9,6 +9,9 @@
  * unknown subcommand refuses with one line.
  */
 
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 const WIRED = new Set(["install", "uninstall", "doctor", "eval"]);
 
 const TASK_OF = {
@@ -59,6 +62,18 @@ export async function dispatch(argv) {
   return 1;
 }
 
-if (process.argv[1] === new URL(import.meta.url, "file://").pathname) {
+// Run when this file is the entry point, also through a symlink: npm links a
+// package's bins (`npm install -g`, `npx`, node_modules/.bin), so argv[1] is the
+// link's path, never this file's. Compare real paths.
+function isEntryPoint() {
+  if (process.argv[1] === undefined) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   process.exit(await dispatch(process.argv));
 }

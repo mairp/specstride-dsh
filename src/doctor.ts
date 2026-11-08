@@ -660,42 +660,55 @@ function statIsFile(path: string): boolean {
   }
 }
 
-/** The three skill directories in the roots this package knows (HF-01). */
-function skillsInstalledObservation(
+/**
+ * The three skill directories in the roots this package knows (HF-01), in
+ * dsh's rank order: `<projectRoot>/.dsh/skills` (100), `<projectRoot>/.agents/skills`
+ * (200), `$DSH_HOME/skills` (400), `~/.agents/skills` (500). The project root is
+ * the installer's: `PROJECT_ROOT`, else the working directory.
+ *
+ * Per skill, the copy dsh loads is the one in the highest-rank root that has it.
+ * Missing: no root has it. Stale: the loaded copy is at another version than this
+ * package. Shadowed: a higher-rank copy at another version hides a copy at this
+ * package's version in a lower-rank root. An install in any of the three install
+ * scopes (project, user, shared) therefore satisfies the check.
+ */
+export function skillsInstalledObservation(
   env: NodeJS.ProcessEnv,
+  cwd: string = process.cwd(),
 ): SkillsInstalledObservation {
   const packageVersion = (
     JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
       version?: string;
     }
   ).version ?? "0.0.0";
-  const userRoot =
-    env.DSH_HOME !== undefined && env.DSH_HOME !== ""
-      ? join(env.DSH_HOME, "skills")
-      : null;
-  const projectRoot = env.PROJECT_ROOT ?? null;
-  // Higher-rank roots shadow a lower-rank copy (rank 100 and 200 of HF-01).
-  const higherRankRoots = projectRoot
-    ? [join(projectRoot, ".dsh", "skills"), join(projectRoot, ".agents", "skills")]
-    : [];
+  const nonEmpty = (value: string | undefined): string | null =>
+    value !== undefined && value !== "" ? value : null;
+  const projectRoot = nonEmpty(env.PROJECT_ROOT) ?? cwd;
+  const dshHome = nonEmpty(env.DSH_HOME);
+  const home = nonEmpty(env.HOME);
+  const roots: string[] = [
+    join(projectRoot, ".dsh", "skills"),
+    join(projectRoot, ".agents", "skills"),
+    ...(dshHome !== null ? [join(dshHome, "skills")] : []),
+    ...(home !== null ? [join(home, ".agents", "skills")] : []),
+  ];
   const missing: string[] = [];
   const stale: string[] = [];
   const shadowed: { name: string; root: string; version: string }[] = [];
   for (const name of SKILL_SPELLINGS) {
-    if (userRoot !== null && !existsSync(join(userRoot, name, "SKILL.md"))) {
+    const copies = roots
+      .filter((root) => existsSync(join(root, name, "SKILL.md")))
+      .map((root) => ({ root, version: skillVersion(join(root, name, "SKILL.md")) }));
+    if (copies.length === 0) {
       missing.push(name);
       continue;
     }
-    if (userRoot !== null) {
-      const version = skillVersion(join(userRoot, name, "SKILL.md"));
-      if (version !== null && version !== packageVersion) stale.push(name);
-    }
-    for (const root of higherRankRoots) {
-      const version = skillVersion(join(root, name, "SKILL.md"));
-      if (version !== null) {
-        shadowed.push({ name, root, version });
-        break;
-      }
+    const loaded = copies[0];
+    if (loaded.version === packageVersion) continue;
+    if (copies.slice(1).some((copy) => copy.version === packageVersion)) {
+      shadowed.push({ name, root: loaded.root, version: loaded.version ?? "unknown" });
+    } else {
+      stale.push(name);
     }
   }
   return { missing, stale, shadowed };
