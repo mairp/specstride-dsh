@@ -1,0 +1,1 @@
+{ "name": "bad", "version": "0.0.0", "scripts": { "postinstall": "node setup.js" } }

@@ -82,3 +82,35 @@ test("the recorded dsh-version range is exported for host.dsh-version", () => {
   assert.equal(DSH_VERSION_RANGE, ">=0.1.0-rc.8 <0.1.0");
   assert.equal(DSH_VERSION_PIN, "0.1.0-rc.8");
 });
+
+test("the kanban rows HF-16 to HF-26 are present, pinned, contiguous and settled as R2 says", () => {
+  const ids = dshHostFacts.map((row) => row.id);
+  assert.deepEqual(
+    ids,
+    Array.from({ length: ids.length }, (_, i) => `HF-${String(i + 1).padStart(2, "0")}`),
+    "ids are contiguous",
+  );
+  assert.ok(ids.includes("HF-26"));
+  const unverified = ["HF-18", "HF-19", "HF-21", "HF-22", "HF-23", "HF-25"];
+  const dated: Record<string, string> = {
+    "HF-16": "2026-11-08",
+    "HF-17": "2026-11-08",
+    "HF-20": "2026-11-08",
+    "HF-24": "2026-10-04",
+    "HF-26": "2026-11-08",
+  };
+  for (let n = 16; n <= 26; n += 1) {
+    const row = dshHostFactOf(`HF-${n}`);
+    assert.ok(row !== undefined, `HF-${n} recorded`);
+    assert.equal(row.pin, DSH_VERSION_PIN);
+    if (unverified.includes(row.id)) {
+      assert.equal(row.verifiedOn, "unverified", row.id);
+      assert.ok(row.settlingCheck !== null && row.settlingCheck.length > 0, row.id);
+    } else {
+      assert.equal(row.verifiedOn, dated[row.id], row.id);
+      assert.equal(row.settlingCheck, null);
+    }
+  }
+  const listed = unverifiedDshHostFacts().map((row) => row.id);
+  for (const id of unverified) assert.ok(listed.includes(id), `${id} listed as unverified`);
+});
