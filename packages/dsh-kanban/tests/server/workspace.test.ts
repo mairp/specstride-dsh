@@ -106,7 +106,15 @@ test("a cold session without cwd answers no-run with 0 CLI calls", async () => {
 });
 
 test("the shim is the resolved peer file, never a PATH binary", () => {
-  const shim = resolveShim();
-  assert.ok(shim.startsWith("/"), shim);
-  assert.ok(shim.endsWith("node_modules/@specstride/host-dsh/bin/specstride.mjs"), shim);
+  // `ensureStubPeer` pins `KANBAN_SHIM_PATH` for the CLI tests; the resolution
+  // itself is asserted without the override, against the peer location.
+  const saved = process.env.KANBAN_SHIM_PATH;
+  delete process.env.KANBAN_SHIM_PATH;
+  try {
+    const shim = resolveShim();
+    assert.ok(shim.startsWith("/"), shim);
+    assert.ok(shim.endsWith("node_modules/@specstride/host-dsh/bin/specstride.mjs"), shim);
+  } finally {
+    if (saved !== undefined) process.env.KANBAN_SHIM_PATH = saved;
+  }
 });

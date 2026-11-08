@@ -5,12 +5,14 @@
  * acceptance → `view` | `no-run` | `refused-schema` | `unavailable`, always as
  * JSON with the three hardening headers.
  */
-import { resolveWorkspace,              } from "./workspace.js";
-import { status } from "./cli.js";
+import { resolveWorkspace, SESSION_ID_PATTERN,              } from "./workspace.js";
+import { status, wait,                                    } from "./cli.js";
 import { refusalLine } from "../shared/view-read.js";
 
 export const VIEW_PATH = "/specstride/view";
 export const UNAVAILABLE_LINE = "Kanban unavailable — run /specstride-doctor";
+/** contracts/view-route.md check 4: the cursor the client sends back. */
+export const CURSOR_PATTERN = /^[0-9]+\.[0-9]+\.[0-9a-f]{8}$/;
 
 const HEADERS                                   = {
   "Cache-Control": "no-store",
@@ -25,14 +27,12 @@ function reply(status        , body                         )        {
   return { status, body, headers: HEADERS };
 }
 
-/** The answer for one session query: workspace, then one CLI call, then the mapping. */
-export async function answerSession(ctx         , sessionId        )                 {
-  const resolved = resolveWorkspace(ctx, sessionId);
-  if (!resolved.ok) return reply(200, { answer: "no-run" }); // resolution failure: 0 CLI calls (F121-FR-007)
-  const result = await status(resolved.cwd);
+function mapResult(result                           )        {
   switch (result.kind) {
     case "view":
       return reply(200, { answer: "view", view: result.view, cursor: { token: result.cursorToken } });
+    case "unchanged":
+      return reply(200, { answer: "unchanged", cursor: { token: result.cursorToken } });
     case "no-run":
       return reply(200, { answer: "no-run" });
     case "refused-schema":
@@ -42,9 +42,17 @@ export async function answerSession(ctx         , sessionId        )            
   }
 }
 
+/** The answer for one session query: workspace, then one CLI call, then the mapping. */
+export async function answerSession(ctx         , sessionId        , cursor                )                 {
+  const resolved = resolveWorkspace(ctx, sessionId);
+  if (!resolved.ok) return reply(200, { answer: "no-run" }); // resolution failure: 0 CLI calls (F121-FR-007)
+  // With a cursor the cycle is the blocking wait, then at most one status (F121-FR-004).
+  return mapResult(cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd));
+}
+
                                                     
 
-/** The route handler: method and path first, then the session query. */
+/** The route handler: method, path, then the session and cursor queries. */
 export function createViewHandler(ctx         )                                          {
   return async (request) => {
     if ((request.method ?? "GET").toUpperCase() !== "GET") {
@@ -53,6 +61,9 @@ export function createViewHandler(ctx         )                                 
     const url = new URL(request.url ?? `http://127.0.0.1${VIEW_PATH}`);
     if (url.pathname !== VIEW_PATH) return reply(404, { answer: "bad-request" });
     const session = url.searchParams.get("session") ?? "";
-    return answerSession(ctx, session);
+    if (!SESSION_ID_PATTERN.test(session)) return reply(400, { answer: "bad-request" });
+    const cursor = url.searchParams.get("cursor");
+    if (cursor !== null && !CURSOR_PATTERN.test(cursor)) return reply(400, { answer: "bad-request" });
+    return answerSession(ctx, session, cursor);
   };
 }

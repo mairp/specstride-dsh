@@ -26,8 +26,17 @@ const SIGKILL_AFTER_MS = 2_000;
                               
                             
 
-/** The file path of 120's shim, resolved from the peer package (throws when absent). */
+                                                                                   
+
+/**
+ * The file path of 120's shim, resolved from the peer package (throws when
+ * absent). `KANBAN_SHIM_PATH` overrides the resolution with an absolute path —
+ * the hook the tests use to give each test process its own stub peer, and the
+ * hook an embedder may use to pin the shim.
+ */
 export function resolveShim()         {
+  const override = process.env.KANBAN_SHIM_PATH;
+  if (override !== undefined && override !== "") return override;
   return fileURLToPath(import.meta.resolve(SHIM_SPECIFIER, import.meta.url));
 }
 
@@ -138,16 +147,42 @@ function mapStatusOutput(code               , stdout        , capped         )  
 
 /** `kanban status --json` in the given workspace, through the shim only. */
 export async function status(cwd        )                        {
+  const call = await shimCall(cwd, ["kanban", "status", "--json"], IDLE_LIMIT_MS);
+  if (call === null) return { kind: "unavailable" };
+  return mapStatusOutput(call.code, call.stdout, call.capped);
+}
+
+/** The protocol probe plus one shim call, or `null` when the probe refused (F120-FR-012). */
+async function shimCall(cwd        , argv          , idleLimitMs        ) {
   let shimPath        ;
   try {
     shimPath = resolveShim();
   } catch {
-    return { kind: "unavailable" };
+    return null;
   }
-  // 120's protocol check runs first (F120-FR-012); any refusal means no call.
   const probe = await runShim(cwd, shimPath, ["--protocol"], IDLE_LIMIT_MS);
   const protocol = Number.parseInt(probe.stdout.trim(), 10);
-  if (probe.capped || probe.code !== 0 || protocol !== SUPPORTED_PROTOCOL) return { kind: "unavailable" };
-  const call = await runShim(cwd, shimPath, ["kanban", "status", "--json"], IDLE_LIMIT_MS);
-  return mapStatusOutput(call.code, call.stdout, call.capped);
+  if (probe.capped || probe.code !== 0 || protocol !== SUPPORTED_PROTOCOL) return null;
+  return runShim(cwd, shimPath, argv, idleLimitMs);
+}
+
+/**
+ * `kanban wait --until-change --cursor <token> --timeout 25` in the workspace,
+ * through the shim only (contracts/view-route.md "CLI calls"). The idle limit is
+ * the wait timeout (25 s) plus its 5 s grace — the runner's 30 s hard limit
+ * kills a `wait` that never answers, and that answers "unavailable".
+ */
+export const WAIT_TIMEOUT_SECONDS = 25;
+const WAIT_LIMIT_MS = (WAIT_TIMEOUT_SECONDS + 5) * 1000;
+
+export async function wait(cwd        , cursor        )                      {
+  const call = await shimCall(
+    cwd,
+    ["kanban", "wait", "--until-change", "--cursor", cursor, "--timeout", String(WAIT_TIMEOUT_SECONDS)],
+    WAIT_LIMIT_MS,
+  );
+  if (call === null || call.capped || call.code !== 0) return { kind: "unavailable" };
+  if (call.stdout.trim() === "") return { kind: "unchanged", cursorToken: cursor };
+  // A change line: exactly one `status --json` fetches the new view.
+  return status(cwd);
 }

@@ -6,11 +6,11 @@
  * settling check pending). The module defines no browser-global property and no
  * stored key: the DOM is confined to the pane container and its style tag.
  */
-import { boardTree } from "../shared/board-tree.ts";
+import { startPanePoller, type Pane as PollerPane } from "./poller.ts";
 import { toReact } from "./react-adapter.ts";
 
 export const VIEW_PATH = "/specstride/view";
-export const POLL_MS = 5000;
+export { POLL_MS } from "./poller.ts";
 
 type TreeNode = { tag: string; attrs: Readonly<Record<string, string>>; text?: string; children: readonly TreeNode[] };
 type Reactish = { createElement: (...args: unknown[]) => unknown };
@@ -31,10 +31,6 @@ function timersOf(ctx: Ctx | undefined): Timers {
 
 function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefined): Pane {
   const timers = timersOf(ctx);
-  const controller = new AbortController();
-  let timer: unknown;
-  let style: { remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } | undefined;
-  let latest: TreeNode | undefined;
   const pane = ctx.layout?.({
     id: "kanban",
     render: (node: TreeNode, react: Reactish) => toReact(node, react),
@@ -43,6 +39,7 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
     | { ownerDocument?: { createElement: (tag: string) => { setAttribute: (name: string, value: string) => void; remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } }; appendChild?: (child: unknown) => void }
     | undefined;
   const doc = container?.ownerDocument;
+  let style: { remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } | undefined;
   if (doc !== undefined) {
     const element = doc.createElement("style");
     element.setAttribute("data-kanban-style", "");
@@ -50,28 +47,33 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
     style = element;
   }
 
-  async function tick(): Promise<void> {
-    if (controller.signal.aborted) return;
-    try {
-      const response = await fetch(`${VIEW_PATH}?session=${encodeURIComponent(sessionId)}`, { signal: controller.signal });
-      const value = (await response.json()) as { answer?: string; view?: Parameters<typeof boardTree>[0] };
-      if (value?.answer === "view" && value.view !== undefined) {
-        latest = boardTree(value.view);
-        const react = reactOf();
-        if (react !== undefined) pane?.update?.(toReact(latest, react));
-      }
-    } catch {
-      // network error, aborted: keep the last view (the staleness banner lands with US2)
-    }
-    if (!controller.signal.aborted) timer = timers.setTimeout?.(() => void tick(), POLL_MS);
-  }
-
-  void tick();
+  let latest: TreeNode | undefined;
+  const show = (tree: TreeNode): void => {
+    latest = tree;
+    const react = reactOf();
+    if (react !== undefined) pane?.update?.(toReact(tree, react));
+  };
+  /** The staleness line enters the pane as text, never as markup (F121-FR-012). */
+  const line = (text: string): void => {
+    const node = doc?.createElement("div");
+    if (node === undefined) return;
+    node.textContent = text;
+    container?.appendChild?.(node);
+  };
+  const poller: PollerPane = startPanePoller(
+    {
+      sessionId,
+      timers,
+      render: (tree) => show(tree),
+      stale: line,
+      message: line,
+    },
+    reactOf,
+  );
 
   return {
     dispose() {
-      controller.abort();
-      if (timer !== undefined) timers.clearTimeout?.(timer);
+      poller.dispose();
       if (style !== undefined) {
         if (typeof style.remove === "function") style.remove();
         else style.parentNode?.removeChild(style);

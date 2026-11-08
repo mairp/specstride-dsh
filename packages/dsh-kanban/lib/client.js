@@ -11,11 +11,11 @@ window.__ModuleLoader__.load({
        * settling check pending). The module defines no browser-global property and no
        * stored key: the DOM is confined to the pane container and its style tag.
        */
-      const __m1 = __load("shared/board-tree"); const { boardTree } = __m1;
+      const __m1 = __load("client/poller"); const { startPanePoller } = __m1;
       const __m2 = __load("client/react-adapter"); const { toReact } = __m2;
       
       const VIEW_PATH = "/specstride/view";
-      const POLL_MS = 5000;
+      const __m3 = __load("client/poller"); exports.POLL_MS = __m3.POLL_MS;
       
                                                                                                                              
                                                                          
@@ -36,10 +36,6 @@ window.__ModuleLoader__.load({
       
       function openPane(ctx     , sessionId        , reactOf                            )       {
         const timers = timersOf(ctx);
-        const controller = new AbortController();
-        let timer         ;
-        let style                                                                                             ;
-        let latest                      ;
         const pane = ctx.layout?.({
           id: "kanban",
           render: (node          , react          ) => toReact(node, react),
@@ -48,6 +44,7 @@ window.__ModuleLoader__.load({
                                                                                                                                                                                                                                                 
                      ;
         const doc = container?.ownerDocument;
+        let style                                                                                             ;
         if (doc !== undefined) {
           const element = doc.createElement("style");
           element.setAttribute("data-kanban-style", "");
@@ -55,28 +52,33 @@ window.__ModuleLoader__.load({
           style = element;
         }
       
-        async function tick()                {
-          if (controller.signal.aborted) return;
-          try {
-            const response = await fetch(`${VIEW_PATH}?session=${encodeURIComponent(sessionId)}`, { signal: controller.signal });
-            const value = (await response.json())                                                               ;
-            if (value?.answer === "view" && value.view !== undefined) {
-              latest = boardTree(value.view);
-              const react = reactOf();
-              if (react !== undefined) pane?.update?.(toReact(latest, react));
-            }
-          } catch {
-            // network error, aborted: keep the last view (the staleness banner lands with US2)
-          }
-          if (!controller.signal.aborted) timer = timers.setTimeout?.(() => void tick(), POLL_MS);
-        }
-      
-        void tick();
+        let latest                      ;
+        const show = (tree          )       => {
+          latest = tree;
+          const react = reactOf();
+          if (react !== undefined) pane?.update?.(toReact(tree, react));
+        };
+        /** The staleness line enters the pane as text, never as markup (F121-FR-012). */
+        const line = (text        )       => {
+          const node = doc?.createElement("div");
+          if (node === undefined) return;
+          node.textContent = text;
+          container?.appendChild?.(node);
+        };
+        const poller             = startPanePoller(
+          {
+            sessionId,
+            timers,
+            render: (tree) => show(tree),
+            stale: line,
+            message: line,
+          },
+          reactOf,
+        );
       
         return {
           dispose() {
-            controller.abort();
-            if (timer !== undefined) timers.clearTimeout?.(timer);
+            poller.dispose();
             if (style !== undefined) {
               if (typeof style.remove === "function") style.remove();
               else style.parentNode?.removeChild(style);
@@ -116,7 +118,220 @@ window.__ModuleLoader__.load({
       
       exports.default = start;
       exports.VIEW_PATH = VIEW_PATH;
+    },
+    "client/poller": function (module, exports) {
+      /**
+       * T028 — the poller (contracts/view-route.md "What the client does"; F121-FR-003,
+       * F121-FR-010). At most one outstanding request at every instant (one
+       * `AbortController` per request, reaped at the client limit of 35 s), one timer
+       * at a time, the backoff 1, 2, 4 … 30 s after a failed cycle and the 5 s
+       * cadence again on a good one. The staleness time is taken from the browser
+       * clock when the last good answer arrived and handed to the pane already
+       * formatted — no clock lives in the builders.
+       */
+      const __m1 = __load("shared/board-tree"); const { boardTree } = __m1;
+      const __m2 = __load("client/react-adapter"); const { toReact } = __m2;
+      
+      const VIEW_PATH = "/specstride/view";
+      const POLL_MS = 5000;
+      /** The client limit (contracts/view-route.md): no answer is awaited past 35 s. */
+      const CLIENT_LIMIT_MS = 35_000;
+      const BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
+      
+                                                                                                                             
+                                                                         
+                                                                                                                      
+      
+                     
+                        
+                                       
+                                           
+                      
+        
+      
+                                   
+                          
+                       
+                                                                                       
+                                                                                                        
+                                                                         
+                                                        
+                                                                                           
+                                      
+                                                                               
+                                         
+                         
+        
+      
+                                                   
+      
+      function startPoller(options               )         {
+        const timers = options.timers;
+        const limitMs = options.limitMs ?? CLIENT_LIMIT_MS;
+        const setTimeout = timers.setTimeout?.bind(timers) ?? globalThis.setTimeout.bind(globalThis);
+        const clearTimeout = timers.clearTimeout?.bind(timers) ?? globalThis.clearTimeout.bind(globalThis);
+      
+        let disposed = false;
+        let timer         ;
+        let limitTimer         ;
+        let controller                             ;
+        let generation = 0;
+        let cursor                = null;
+        let backoffIndex = 0;
+        let lastGoodAt                = null;
+        let forbiddenRun = false;
+      
+        const schedule = (ms        )       => {
+          if (disposed) return;
+          timer = setTimeout(poll, ms);
+        };
+      
+        const resetBackoff = ()       => {
+          backoffIndex = 0;
+        };
+      
+        const nextBackoff = ()         => {
+          const delay = BACKOFF_MS[Math.min(backoffIndex, BACKOFF_MS.length - 1)]          ;
+          backoffIndex = Math.min(backoffIndex + 1, BACKOFF_MS.length - 1);
+          return delay;
+        };
+      
+        const markStale = ()       => {
+          options.stale(`Not updated since ${new Date(lastGoodAt ?? Date.now()).toISOString()}`);
+        };
+      
+        const fail = ()       => {
+          markStale();
+          schedule(nextBackoff());
+        };
+      
+        function handle(value               )       {
+          const answer = typeof value?.answer === "string" ? value.answer : undefined;
+          const token = typeof value?.cursor?.token === "string" ? value.cursor.token : null;
+          switch (answer) {
+            case "view": {
+              if (value?.view === undefined || value.view === null || typeof value.view !== "object") return fail();
+              if (token !== null) cursor = token;
+              options.render(value.view                           );
+              lastGoodAt = Date.now();
+              resetBackoff();
+              schedule(POLL_MS);
+              return;
+            }
+            case "unchanged": {
+              if (token !== null) cursor = token;
+              lastGoodAt = Date.now();
+              resetBackoff();
+              schedule(POLL_MS);
+              return;
+            }
+            case "no-run": {
+              cursor = null;
+              lastGoodAt = Date.now();
+              resetBackoff();
+              schedule(POLL_MS);
+              return;
+            }
+            case "refused-schema": {
+              options.message?.(typeof value?.line === "string" ? value.line : "Kanban cannot read this view — run /specstride-doctor");
+              return; // one line, no partial board, no retry (contracts/view-route.md)
+            }
+            case "run-changed": {
+              cursor = null; // the token of the old run is void; ask again without a cursor
+              schedule(0);
+              return;
+            }
+            case "forbidden": {
+              if (forbiddenRun) return fail(); // a second forbidden in a row is an outage
+              forbiddenRun = true;
+              cursor = null;
+              schedule(0);
+              return;
+            }
+            case "unavailable":
+              return fail();
+            default: {
+              // Not an answer of the route (e.g. the SPA fallback's index HTML): no retry.
+              options.message?.("Kanban unavailable — run /specstride-doctor");
+            }
+          }
+        }
+      
+        async function poll()                {
+          if (disposed) return;
+          const mine = ++generation;
+          controller = new AbortController();
+          const url = `${VIEW_PATH}?session=${encodeURIComponent(options.sessionId)}${cursor === null ? "" : `&cursor=${encodeURIComponent(cursor)}`}`;
+          limitTimer = setTimeout(() => {
+            if (mine !== generation || disposed) return;
+            controller?.abort();
+            markStale();
+            schedule(nextBackoff());
+          }, limitMs);
+          try {
+            const response = await options.fetch(url, { signal: controller.signal });
+            if (mine !== generation || disposed) return;
+            const value = await response.json();
+            if (mine !== generation || disposed) return;
+            forbiddenRun = false;
+            handle(value);
+          } catch {
+            if (mine !== generation || disposed) return;
+            fail();
+          } finally {
+            if (mine === generation) {
+              clearTimeout(limitTimer);
+              limitTimer = undefined;
+              // The controller is kept, not nulled: a dispose while no request is in
+              // flight still aborts the last signal, so an unmount never leaves a
+              // fetchable handle behind (F121-FR-003).
+            }
+          }
+        }
+      
+        void poll(); // the first request goes out as the pane mounts
+      
+        return {
+          dispose() {
+            disposed = true;
+            // Only a still-pending in-flight limit timer is cleared here; the poll
+            // timer, when one is pending, fires once into `poll`, which returns
+            // immediately because `disposed` holds — so unmount schedules nothing and
+            // aborts the one outstanding request (F121-FR-003).
+            if (limitTimer !== undefined) clearTimeout(limitTimer);
+            controller?.abort();
+          },
+        };
+      }
+      
+                                                 
+      
+      /** A pane poller that renders through the shared board tree and the React adapter. */
+      function startPanePoller(
+        options   
+                            
+                         
+                                                                        
+                                        
+                                          
+         ,
+        reactOf                            ,
+      )       {
+        return startPoller({
+          sessionId: options.sessionId,
+          timers: options.timers,
+          fetch: (url, init) => fetch(url, init)                                            ,
+          render: (view) => options.render(boardTree(view         ), reactOf()),
+          stale: options.stale,
+          message: options.message,
+        });
+      }
+      
+      exports.startPoller = startPoller;
+      exports.startPanePoller = startPanePoller;
+      exports.VIEW_PATH = VIEW_PATH;
       exports.POLL_MS = POLL_MS;
+      exports.CLIENT_LIMIT_MS = CLIENT_LIMIT_MS;
     },
     "client/react-adapter": function (module, exports) {
       /**

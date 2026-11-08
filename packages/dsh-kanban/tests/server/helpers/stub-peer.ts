@@ -4,15 +4,23 @@
  * STUB_LOG/STUB_SCRIPT files. The stub lives in the package's own
  * `node_modules`, exactly where a peer resolves from inside a dsh profile.
  */
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 export const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 export const repoRoot = join(packageRoot, "..", "..");
 
-export const stubPeerRoot = join(packageRoot, "node_modules", "@specstride", "host-dsh");
-export const stubShimPath = join(stubPeerRoot, "bin", "specstride.mjs");
+/**
+ * The stub peer lives in a per-process directory under the temp dir, not in the
+ * shared `node_modules` path: the test runner runs test files as concurrent
+ * processes, and two of them writing one shim file clobber each other's stub.
+ * The server half is pointed at it with `KANBAN_SHIM_PATH` (the hook in
+ * `resolveShim`).
+ */
+export const stubPeerRoot = join(tmpdir(), `kanban-stub-peer-${process.pid}`);
+export let stubShimPath = join(stubPeerRoot, "bin", "specstride.mjs");
 
 const STUB_SHIM = `#!/usr/bin/env node
 // T017 — the stub peer shim. Answers only --protocol and "kanban status --json",
@@ -56,6 +64,7 @@ process.exit(3);
 
 /** Write the stub peer files (idempotent; safe to call from every test). */
 export function ensureStubPeer(): string {
+  rmSync(stubPeerRoot, { recursive: true, force: true });
   mkdirSync(dirname(stubShimPath), { recursive: true });
   writeFileSync(stubShimPath, STUB_SHIM, "utf8");
   writeFileSync(
@@ -63,6 +72,7 @@ export function ensureStubPeer(): string {
     JSON.stringify({ name: "@specstride/host-dsh", version: "0.0.0", private: true, type: "module" }, null, 2) + "\n",
     "utf8",
   );
+  process.env.KANBAN_SHIM_PATH = stubShimPath;
   return stubShimPath;
 }
 
