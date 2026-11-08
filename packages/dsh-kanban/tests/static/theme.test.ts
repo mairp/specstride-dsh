@@ -18,7 +18,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { scanTree } from "../../scripts/scan.ts";
-import clientFactory from "../../src/client/index.ts";
+import { inject as clientInject, openPane } from "../../src/client/index.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const css = readFileSync(join(packageRoot, "src", "client", "styles.css"), "utf8");
@@ -101,23 +101,14 @@ test("rendering with a theme context is identical to rendering without one", asy
       ({ ok: true, status: 200, json: async () => ({ answer: "view", view }) })) as typeof fetch;
     const updates: unknown[] = [];
     const clock = new Clock();
-    const app = clientFactory(
-      {
-        locale: "en",
-        ...(withTheme ? { theme: { mode: "dark", dark: true } } : {}),
-        slots: { inject: () => () => {} },
-        layout: () => ({ mount: () => ({}), update: (element: unknown) => updates.push(element) }),
-        timer: clock,
-      } as never,
-      () => fakeReact,
-    );
-    const inject = app.registration.inject as (sessionId: string) => { dispose: () => void };
-    const pane = inject("s1");
+    // The pane never sees ctx: a theme can reach it only through an injected
+    // `theme` service, and the plugin declares none (asserted below).
+    const host = withTheme ? { container: {}, update: (element: unknown) => updates.push(element), theme: { mode: "dark", dark: true } } : { container: {}, update: (element: unknown) => updates.push(element) };
+    const pane = openPane(host, "s1", () => fakeReact, clock);
     await clock.advance(2_000);
     // enough microtask turns for the whole fetch → json → render chain
     for (let i = 0; i < 1_000; i += 1) await Promise.resolve();
     pane.dispose();
-    app.dispose();
     (globalThis as { fetch: unknown }).fetch = realFetch;
     return updates;
   };
@@ -125,4 +116,5 @@ test("rendering with a theme context is identical to rendering without one", asy
   const withTheme = await run(true);
   assert.ok(withoutTheme.length > 0, "nothing rendered without a theme in ctx");
   assert.deepEqual(withTheme, withoutTheme);
+  assert.ok(!clientInject.includes("theme"), "the client injects no theme service");
 });

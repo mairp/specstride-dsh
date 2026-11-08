@@ -1,10 +1,15 @@
 /**
- * T024 — the client half (HF-17, F121-FR-003). One `inject("conversation.view", …)`
- * whose registration is `{ name, id, order, locale, label, inject }`; `inject(sessionId)`
- * opens the pane: one fetch per answer for now (poller), rendering through the
- * shared board tree and the React adapter, laid out through `ctx.layout` (HF-18,
- * settling check pending). The module defines no browser-global property and no
- * stored key: the DOM is confined to the pane container and its style tag.
+ * T024 — the client half (HF-17, F121-FR-003), on the dsh rc.8 client contract
+ * (the shape of dsh-client-ui-trajectory): a cordis plugin `{ inject, apply }`
+ * with NO default export (the loader's `unwrapExports` takes `exports.default ??
+ * exports`, so a default would drop `inject` and every `ctx.<service>` read would
+ * throw "cannot get property … without inject"). `apply` registers the
+ * `specstride-kanban` locale namespace and one `conversation.view` entry through
+ * `ctx.slots.inject(name, () => ctx.slots.register(registration, KanbanView))`.
+ * The view component owns its container and opens the pane on mount: one fetch
+ * per answer (poller), rendering through the shared board tree and the React
+ * adapter. The module defines no browser-global property and no stored key: the
+ * DOM is confined to the pane container and its style tag.
  */
 import { startPanePoller, type Pane as PollerPane } from "./poller.ts";
 import { toReact } from "./react-adapter.ts";
@@ -12,23 +17,41 @@ import styles from "./generated-styles.ts";
 
 export const VIEW_PATH = "/specstride/view";
 export { POLL_MS } from "./poller.ts";
+export { toReact } from "./react-adapter.ts";
 
 type TreeNode = { tag: string; attrs: Readonly<Record<string, string>>; text?: string; children: readonly TreeNode[] };
 type Reactish = { createElement: (...args: unknown[]) => unknown };
 type Timers = { setTimeout?: (fn: () => void, ms: number) => unknown; clearTimeout?: (timer: unknown) => void };
 
-type Ctx = {
-  slots?: { inject?: (name: string, registration: unknown) => unknown };
-  layout?: (descriptor: Record<string, unknown>) => unknown;
-  locale?: string;
-  timer?: Timers;
+/** The services this plugin reads; cordis refuses any other `ctx.<service>` read. */
+export const inject = ["slots", "locale"];
+
+/** The locale namespace this plugin owns (the registration's `locale` field). */
+export const NS = "specstride-kanban";
+export const en = { "view.kanban": "Kanban" };
+export const zh = { "view.kanban": "看板" };
+
+type Slots = {
+  inject: (name: string, factory: () => unknown) => unknown;
+  register: (registration: Record<string, unknown>, component: unknown) => unknown;
+};
+type Locale = {
+  register: (ns: string, dictionaries: Record<string, Record<string, string>>) => unknown;
+  bind: (ns: string) => (key: string) => string;
+};
+export type ClientCtx = {
+  slots: Slots;
+  locale: Locale;
+  effect?: (body: () => unknown, label?: string) => unknown;
 };
 
 type Pane = { dispose: () => void };
 
-function timersOf(ctx: Ctx | undefined): Timers {
-  return (ctx?.timer as Timers | undefined) ?? globalThis;
-}
+/** Where a pane draws: the imperative container (style tag, notes) and the board element sink. */
+export type PaneHost = {
+  container?: unknown;
+  update?: (element: unknown) => void;
+};
 
 type Docish = { querySelector?: (selector: string) => { getAttribute?: (name: string) => string | null } | null } | undefined;
 
@@ -39,13 +62,9 @@ function tokenOf(doc: Docish): string | null {
   return typeof value === "string" && value !== "" ? value : null;
 }
 
-function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefined): Pane {
-  const timers = timersOf(ctx);
-  const pane = ctx.layout?.({
-    id: "kanban",
-    render: (node: TreeNode, react: Reactish) => toReact(node, react),
-  }) as { mount?: () => unknown; unmount?: () => void; container?: unknown; update?: (element: unknown) => void } | undefined;
-  const container = (pane?.mount?.() ?? pane?.container ?? undefined) as
+export function openPane(host: PaneHost, sessionId: string, reactOf: () => Reactish | undefined, timers: Timers = globalThis): Pane {
+  const pane = host;
+  const container = pane.container as
     | { ownerDocument?: { createElement: (tag: string) => { setAttribute: (name: string, value: string) => void; textContent?: string; remove?: () => void; parentNode?: { removeChild: (child: unknown) => void } } }; appendChild?: (child: unknown) => void }
     | undefined;
   const doc = container?.ownerDocument;
@@ -75,7 +94,6 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
           if (typeof style.remove === "function") style.remove();
           else style.parentNode?.removeChild(style);
         }
-        pane?.unmount?.();
       },
     };
   }
@@ -84,14 +102,25 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
   const show = (tree: TreeNode): void => {
     latest = tree;
     const react = reactOf();
-    if (react !== undefined) pane?.update?.(toReact(tree, react));
+    if (react !== undefined) pane.update?.(toReact(tree, react));
   };
-  /** The staleness line enters the pane as text, never as markup (F121-FR-012). */
+  /**
+   * The staleness line enters the pane as text, never as markup (F121-FR-012).
+   * ONE status node per pane, rewritten in place: a poll that keeps failing must
+   * not stack a new line on every tick.
+   */
+  let statusNode: { textContent?: string } | undefined;
   const line = (text: string): void => {
-    const node = doc?.createElement("div");
-    if (node === undefined) return;
-    node.textContent = text;
-    container?.appendChild?.(node);
+    if (statusNode === undefined) {
+      const node = doc?.createElement("div");
+      if (node === undefined) return;
+      node.setAttribute("data-kanban-status", "");
+      node.textContent = text;
+      container?.appendChild?.(node);
+      statusNode = node;
+      return;
+    }
+    statusNode.textContent = text;
   };
   const poller: PollerPane = startPanePoller(
     {
@@ -112,35 +141,70 @@ function openPane(ctx: Ctx, sessionId: string, reactOf: () => Reactish | undefin
         if (typeof style.remove === "function") style.remove();
         else style.parentNode?.removeChild(style);
       }
-      pane?.unmount?.();
     },
   };
 }
 
-/** The factory the bundle returns; `require` is the host loader's (HF-16), used only for `react`. */
-export default function start(ctx: Ctx & { slots: NonNullable<Ctx["slots"]> }, require?: (id: string) => unknown): { registration: Record<string, unknown>; dispose: () => void } {
-  const reactOf = () => {
-    try {
-      const react = typeof require === "function" ? require("react") : undefined;
-      return react as Reactish | undefined;
-    } catch {
-      return undefined;
-    }
+type Hooks = {
+  createElement: (...args: unknown[]) => unknown;
+  useRef?: <T>(value: T) => { current: T };
+  useState?: <T>(value: T) => [T, (next: T) => void];
+  useEffect?: (effect: () => (() => void) | void, deps: readonly unknown[]) => void;
+};
+
+/** The loader's `require` (the bundle factory's parameter); absent under node tests. */
+declare const require: ((id: string) => unknown) | undefined;
+
+function loaderReact(): Reactish | undefined {
+  try {
+    return (typeof require === "function" ? require("react") : undefined) as Reactish | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The view component: an outer `.ssk-00000000` box (the stylesheet's scope), one
+ * React-empty child the pane appends its style tag and notes to, and the board
+ * element the poller hands over. The pane opens on mount and is disposed on unmount.
+ */
+export function kanbanView(reactOf: () => Reactish | undefined): (props: { sessionId: string }) => unknown {
+  return function KanbanView(props: { sessionId: string }): unknown {
+    const React = reactOf() as Hooks | undefined;
+    if (React?.useRef === undefined || React.useState === undefined || React.useEffect === undefined) return null;
+    const ref = React.useRef<unknown>(null);
+    const [board, setBoard] = React.useState<unknown>(null);
+    React.useEffect(() => {
+      const pane = openPane({ container: ref.current ?? undefined, update: setBoard }, props.sessionId, reactOf);
+      return () => pane.dispose();
+    }, [props.sessionId]);
+    return React.createElement(
+      "div",
+      { className: "ssk-00000000", "data-kanban-pane": "" },
+      React.createElement("div", { ref, "data-kanban-host": "" }),
+      board,
+    );
   };
-  const locale = typeof ctx.locale === "string" ? ctx.locale : "en";
-  const registration: Record<string, unknown> = {
+}
+
+/** The `conversation.view` registration: `{ name, id, order, locale: NS, label, inject }`. */
+export function kanbanRegistration(t: (key: string) => string): Record<string, unknown> {
+  return {
     name: "conversation.view",
     id: "kanban",
     order: 20,
-    locale,
-    label: () => "Kanban",
-    inject: (sessionId: string) => openPane(ctx, sessionId, reactOf),
+    locale: NS,
+    label: () => t("view.kanban"),
+    inject: (sessionId: string) => ({ sessionId }),
   };
-  const disposeInjection = ctx.slots.inject("conversation.view", registration);
-  return {
-    registration,
-    dispose() {
-      if (typeof disposeInjection === "function") (disposeInjection as () => void)();
-    },
-  };
+}
+
+/** The cordis plugin body: the locale namespace, then the one view tab. Unload disposes both. */
+export function apply(ctx: ClientCtx, _config?: unknown, reactOf: () => Reactish | undefined = loaderReact): void {
+  const registerLocale = () => ctx.locale.register(NS, { en, zh });
+  if (typeof ctx.effect === "function") ctx.effect(registerLocale, "specstride-kanban: dictionaries");
+  else registerLocale();
+  const t = ctx.locale.bind(NS);
+  const View = kanbanView(reactOf);
+  ctx.slots.inject("conversation.view", () => ctx.slots.register(kanbanRegistration(t), View));
 }

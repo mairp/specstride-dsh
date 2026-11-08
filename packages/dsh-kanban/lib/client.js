@@ -11,12 +11,17 @@ window.__ModuleLoader__.load({
     },
     "client/index": function (module, exports) {
       /**
-       * T024 — the client half (HF-17, F121-FR-003). One `inject("conversation.view", …)`
-       * whose registration is `{ name, id, order, locale, label, inject }`; `inject(sessionId)`
-       * opens the pane: one fetch per answer for now (poller), rendering through the
-       * shared board tree and the React adapter, laid out through `ctx.layout` (HF-18,
-       * settling check pending). The module defines no browser-global property and no
-       * stored key: the DOM is confined to the pane container and its style tag.
+       * T024 — the client half (HF-17, F121-FR-003), on the dsh rc.8 client contract
+       * (the shape of dsh-client-ui-trajectory): a cordis plugin `{ inject, apply }`
+       * with NO default export (the loader's `unwrapExports` takes `exports.default ??
+       * exports`, so a default would drop `inject` and every `ctx.<service>` read would
+       * throw "cannot get property … without inject"). `apply` registers the
+       * `specstride-kanban` locale namespace and one `conversation.view` entry through
+       * `ctx.slots.inject(name, () => ctx.slots.register(registration, KanbanView))`.
+       * The view component owns its container and opens the pane on mount: one fetch
+       * per answer (poller), rendering through the shared board tree and the React
+       * adapter. The module defines no browser-global property and no stored key: the
+       * DOM is confined to the pane container and its style tag.
        */
       const __m1 = __load("client/poller"); const { startPanePoller } = __m1;
       const __m2 = __load("client/react-adapter"); const { toReact } = __m2;
@@ -24,23 +29,41 @@ window.__ModuleLoader__.load({
       
       const VIEW_PATH = "/specstride/view";
       const __m4 = __load("client/poller"); exports.POLL_MS = __m4.POLL_MS;
+      const __m5 = __load("client/react-adapter"); exports.toReact = __m5.toReact;
       
                                                                                                                              
                                                                          
                                                                                                                       
       
-                  
-                                                                              
+      /** The services this plugin reads; cordis refuses any other `ctx.<service>` read. */
+      const inject = ["slots", "locale"];
+      
+      /** The locale namespace this plugin owns (the registration's `locale` field). */
+      const NS = "specstride-kanban";
+      const en = { "view.kanban": "Kanban" };
+      const zh = { "view.kanban": "看板" };
+      
+                    
                                                                   
-                        
+                                                                                         
+        
+                     
+                                                                                                
+                                                      
+        
+                               
+                     
                        
+                                                                  
         
       
                                           
       
-      function timersOf(ctx                 )         {
-        return (ctx?.timer                      ) ?? globalThis;
-      }
+      /** Where a pane draws: the imperative container (style tag, notes) and the board element sink. */
+                              
+                            
+                                            
+        
       
                                                                                                                                     
       
@@ -51,13 +74,9 @@ window.__ModuleLoader__.load({
         return typeof value === "string" && value !== "" ? value : null;
       }
       
-      function openPane(ctx     , sessionId        , reactOf                            )       {
-        const timers = timersOf(ctx);
-        const pane = ctx.layout?.({
-          id: "kanban",
-          render: (node          , react          ) => toReact(node, react),
-        })                                                                                                                         ;
-        const container = (pane?.mount?.() ?? pane?.container ?? undefined)   
+      function openPane(host          , sessionId        , reactOf                            , timers         = globalThis)       {
+        const pane = host;
+        const container = pane.container   
                                                                                                                                                                                                                                                                       
                      ;
         const doc = container?.ownerDocument;
@@ -87,7 +106,6 @@ window.__ModuleLoader__.load({
                 if (typeof style.remove === "function") style.remove();
                 else style.parentNode?.removeChild(style);
               }
-              pane?.unmount?.();
             },
           };
         }
@@ -96,14 +114,25 @@ window.__ModuleLoader__.load({
         const show = (tree          )       => {
           latest = tree;
           const react = reactOf();
-          if (react !== undefined) pane?.update?.(toReact(tree, react));
+          if (react !== undefined) pane.update?.(toReact(tree, react));
         };
-        /** The staleness line enters the pane as text, never as markup (F121-FR-012). */
+        /**
+         * The staleness line enters the pane as text, never as markup (F121-FR-012).
+         * ONE status node per pane, rewritten in place: a poll that keeps failing must
+         * not stack a new line on every tick.
+         */
+        let statusNode                                      ;
         const line = (text        )       => {
-          const node = doc?.createElement("div");
-          if (node === undefined) return;
-          node.textContent = text;
-          container?.appendChild?.(node);
+          if (statusNode === undefined) {
+            const node = doc?.createElement("div");
+            if (node === undefined) return;
+            node.setAttribute("data-kanban-status", "");
+            node.textContent = text;
+            container?.appendChild?.(node);
+            statusNode = node;
+            return;
+          }
+          statusNode.textContent = text;
         };
         const poller             = startPanePoller(
           {
@@ -124,41 +153,83 @@ window.__ModuleLoader__.load({
               if (typeof style.remove === "function") style.remove();
               else style.parentNode?.removeChild(style);
             }
-            pane?.unmount?.();
           },
         };
       }
       
-      /** The factory the bundle returns; `require` is the host loader's (HF-16), used only for `react`. */
-      function start(ctx                                            , require                          )                                                                 {
-        const reactOf = () => {
-          try {
-            const react = typeof require === "function" ? require("react") : undefined;
-            return react                        ;
-          } catch {
-            return undefined;
-          }
+                    
+                                                       
+                                                 
+                                                           
+                                                                                          
+        
+      
+      /** The loader's `require` (the bundle factory's parameter); absent under node tests. */
+                                                                   
+      
+      function loaderReact()                       {
+        try {
+          return (typeof require === "function" ? require("react") : undefined)                        ;
+        } catch {
+          return undefined;
+        }
+      }
+      
+      /**
+       * The view component: an outer `.ssk-00000000` box (the stylesheet's scope), one
+       * React-empty child the pane appends its style tag and notes to, and the board
+       * element the poller hands over. The pane opens on mount and is disposed on unmount.
+       */
+      function kanbanView(reactOf                            )                                            {
+        return function KanbanView(props                       )          {
+          const React = reactOf()                     ;
+          if (React?.useRef === undefined || React.useState === undefined || React.useEffect === undefined) return null;
+          const ref = React.useRef         (null);
+          const [board, setBoard] = React.useState         (null);
+          React.useEffect(() => {
+            const pane = openPane({ container: ref.current ?? undefined, update: setBoard }, props.sessionId, reactOf);
+            return () => pane.dispose();
+          }, [props.sessionId]);
+          return React.createElement(
+            "div",
+            { className: "ssk-00000000", "data-kanban-pane": "" },
+            React.createElement("div", { ref, "data-kanban-host": "" }),
+            board,
+          );
         };
-        const locale = typeof ctx.locale === "string" ? ctx.locale : "en";
-        const registration                          = {
+      }
+      
+      /** The `conversation.view` registration: `{ name, id, order, locale: NS, label, inject }`. */
+      function kanbanRegistration(t                         )                          {
+        return {
           name: "conversation.view",
           id: "kanban",
           order: 20,
-          locale,
-          label: () => "Kanban",
-          inject: (sessionId        ) => openPane(ctx, sessionId, reactOf),
-        };
-        const disposeInjection = ctx.slots.inject("conversation.view", registration);
-        return {
-          registration,
-          dispose() {
-            if (typeof disposeInjection === "function") (disposeInjection              )();
-          },
+          locale: NS,
+          label: () => t("view.kanban"),
+          inject: (sessionId        ) => ({ sessionId }),
         };
       }
       
-      exports.default = start;
+      /** The cordis plugin body: the locale namespace, then the one view tab. Unload disposes both. */
+      function apply(ctx           , _config          , reactOf                             = loaderReact)       {
+        const registerLocale = () => ctx.locale.register(NS, { en, zh });
+        if (typeof ctx.effect === "function") ctx.effect(registerLocale, "specstride-kanban: dictionaries");
+        else registerLocale();
+        const t = ctx.locale.bind(NS);
+        const View = kanbanView(reactOf);
+        ctx.slots.inject("conversation.view", () => ctx.slots.register(kanbanRegistration(t), View));
+      }
+      
+      exports.openPane = openPane;
+      exports.kanbanView = kanbanView;
+      exports.kanbanRegistration = kanbanRegistration;
+      exports.apply = apply;
       exports.VIEW_PATH = VIEW_PATH;
+      exports.inject = inject;
+      exports.NS = NS;
+      exports.en = en;
+      exports.zh = zh;
     },
     "client/poller": function (module, exports) {
       /**

@@ -15,7 +15,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach } from "node:test";
-import clientFactory, { POLL_MS } from "../../src/client/index.ts";
+import { openPane, POLL_MS } from "../../src/client/index.ts";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "views");
 const viewA = JSON.parse(readFileSync(join(fixtures, "one-feature-each-lane.json"), "utf8")) as Record<string, unknown>;
@@ -161,41 +161,19 @@ function textOf(value: unknown): string {
   return `${own} ${kids}`.trim();
 }
 
-// --- the fake context --------------------------------------------------------------
+// --- the pane host -----------------------------------------------------------------
 
 type Pane = { dispose: () => void };
 let updates: Element[];
 let container: Record<string, unknown>;
 
-function fakeCtx(clock: Clock): Record<string, unknown> {
-  return {
-    locale: "en",
-    slots: {
-      inject(name: string, registration: Record<string, unknown>) {
-        injections.push({ name, registration });
-        return () => {};
-      },
-    },
-    layout() {
-      return {
-        mount() {
-          return container;
-        },
-        update(element: Element) {
-          updates.push(element);
-        },
-      };
-    },
-    timer: clock,
-  };
-}
-
-let injections: { name: string; registration: Record<string, unknown> }[];
-
 function open(clock: Clock, sessionId: string): Pane {
-  const app = clientFactory(fakeCtx(clock) as never, () => fakeReact());
-  const pane = (injections[0]!.registration.inject as (sessionId: string) => Pane)(sessionId);
-  return { dispose: () => { pane.dispose(); app.dispose(); } };
+  return openPane(
+    { container, update: (element) => updates.push(element as Element) },
+    sessionId,
+    () => fakeReact(),
+    clock,
+  );
 }
 
 /** Everything the pane has ever shown, renders and DOM children alike. */
@@ -208,7 +186,6 @@ beforeEach(() => {
   requests = [];
   inflight.clear();
   updates = [];
-  injections = [];
   container = {
     ownerDocument: {
       createElement(tag: string) {

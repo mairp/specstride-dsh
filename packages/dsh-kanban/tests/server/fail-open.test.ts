@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { afterEach, beforeEach } from "node:test";
-import clientFactory from "../../src/client/index.ts";
+import { openPane } from "../../src/client/index.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const entrySource = join(packageRoot, "src", "server", "entry.ts");
@@ -125,7 +125,16 @@ let requests: { url: string; init?: RequestInit }[];
 
 type Doc = { createElement: (tag: string) => Record<string, unknown>; querySelector?: (selector: string) => { getAttribute: (name: string) => string | null } | null };
 
-function fakeCtx(doc: Doc): Record<string, unknown> {
+const noTimers = {
+  setTimeout() {
+    return Symbol("timer");
+  },
+  clearTimeout() {
+    return undefined;
+  },
+};
+
+function fakeHost(doc: Doc): { container: unknown } {
   const appended: unknown[] = [];
   const container = {
     ownerDocument: doc,
@@ -133,33 +142,8 @@ function fakeCtx(doc: Doc): Record<string, unknown> {
       appended.push(child);
     },
   };
-  (fakeCtx as unknown as { appended: unknown[] }).appended = appended;
-  return {
-    locale: "en-US",
-    slots: {
-      inject() {
-        return () => undefined;
-      },
-    },
-    layout() {
-      return {
-        mount() {
-          return container;
-        },
-        unmount() {
-          return undefined;
-        },
-      };
-    },
-    timer: {
-      setTimeout() {
-        return Symbol("timer");
-      },
-      clearTimeout() {
-        return undefined;
-      },
-    },
-  };
+  (fakeHost as unknown as { appended: unknown[] }).appended = appended;
+  return { container };
 }
 
 function metaDoc(content: string | null): Doc {
@@ -189,21 +173,18 @@ afterEach(() => {
 });
 
 function appendedLines(): string[] {
-  const appended = (fakeCtx as unknown as { appended?: unknown[] }).appended ?? [];
+  const appended = (fakeHost as unknown as { appended?: unknown[] }).appended ?? [];
   return appended
     .filter((node) => (node as { attributes?: Record<string, string> }).attributes?.["data-kanban-style"] === undefined)
     .map((node) => (node as { textContent?: string }).textContent ?? "");
 }
 
 test("the client with no specstride-view-token meta shows the unavailable line and calls fetch 0 times", async () => {
-  const app = clientFactory(fakeCtx(metaDoc(null)) as never);
-  const inject = (app.registration as { inject: (sessionId: string) => unknown }).inject;
-  const pane = inject("sess-1") as { dispose: () => void };
+  const pane = openPane(fakeHost(metaDoc(null)), "sess-1", () => undefined, noTimers);
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(appendedLines(), ["Kanban unavailable — run /specstride-doctor"], "exactly one unavailable line");
   assert.equal(requests.length, 0, "no request was made");
   pane.dispose();
-  app.dispose();
 });
 
 test("the client with a meta and a 200 text/html answer shows the unavailable line and does not retry", async () => {
@@ -217,12 +198,9 @@ test("the client with a meta and a 200 text/html answer shows the unavailable li
       },
     };
   }) as typeof fetch;
-  const app = clientFactory(fakeCtx(metaDoc("A".repeat(43))) as never);
-  const inject = (app.registration as { inject: (sessionId: string) => unknown }).inject;
-  const pane = inject("sess-2") as { dispose: () => void };
+  const pane = openPane(fakeHost(metaDoc("A".repeat(43))), "sess-2", () => undefined, noTimers);
   await new Promise((resolve) => setTimeout(resolve, 80));
   assert.ok(appendedLines().includes("Kanban unavailable — run /specstride-doctor"), "the unavailable line was shown");
   assert.equal(requests.length, 1, "exactly one request was made — no retry after the html answer");
   pane.dispose();
-  app.dispose();
 });

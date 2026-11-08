@@ -29,7 +29,7 @@ test("the manifest fields follow contracts/plugin-package.md", () => {
   assert.equal((pkg.engines as Record<string, string>).node, ">=22.13");
   assert.deepEqual(pkg.dsh, {
     bundle: { patch: "./cordis.patch.yml" },
-    client: { platform: "web", inject: ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-conversation"] },
+    client: { platform: "web", inject: ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-conversation"] },
   });
   // `.` maps to the fail-open loader (lib/server/entry.js) so the bundle
   // patch can mount the bare package name (`name: '@specstride/dsh-kanban'`):
