@@ -61,6 +61,29 @@ Only a missing CLI blocks a launch. On a machine with no CLI it prints the
 install command (`npm install -g specstride@<version>`) and **never runs it** —
 the package installs and updates the CLI by itself never.
 
+`host.cli-found` checks the executable the shim would run, not only a name on
+PATH: a `specstride` that answers no `--protocol` (for example the older bash
+engine first on PATH) fails the check, and the fix names that executable and
+`SPECSTRIDE_BIN`. With no `DSH_HOME` set, the doctor reads dsh's default home
+`~/.dsh` (skills and the web profile), as dsh itself does.
+
+### Under the `dsh web` service
+
+A systemd unit gives `dsh web` its own environment, so the engine the skills
+reach is the one on the unit's PATH unless `SPECSTRIDE_BIN` says otherwise.
+Install the engine of the pin and point the unit at it:
+
+```sh
+npm install -g ./vendor/core/specstride-0.1.0.tgz   # the pinned engine; again after every core pin
+# /etc/systemd/system/dsh-web.service.d/specstride-engine.conf
+[Service]
+Environment=SPECSTRIDE_BIN=/usr/lib/node_modules/specstride/bin/specstride
+```
+
+then `systemctl daemon-reload && systemctl restart dsh-web`. Runs launched
+from dsh sessions inherit the unit's environment, so `SPECSTRIDE_LIMITS=off`
+set the same way lifts every time and count limit of those runs.
+
 ## Walkthrough: dry-run, then a supervised run
 
 Say, in a dsh session with the skills installed:
@@ -107,6 +130,7 @@ artifact by the logical name the CLI printed, never by a path.
 | Symptom | Meaning / fix |
 |---|---|
 | `[SPECSTRIDE-REFUSE] action=protocol reason=protocol-mismatch found=N supported=1 check=--protocol fix="specstride doctor"`, exit 4 | The CLI's protocol ≠ 1: run the doctor; upgrade or pin the engine — never edit the shim |
+| The same line with `found=none` | The `specstride` the shim found answers no `--protocol` — usually a non-Specstride or older engine first on PATH (`fail host.cli-found` names it): set `SPECSTRIDE_BIN` to the pinned engine (see "Under the `dsh web` service") |
 | One line naming the doctor and `npm install -g specstride@<v>`, exit 127 | No CLI found via `SPECSTRIDE_BIN` or PATH: install the printed command, or set `SPECSTRIDE_BIN`; there is no third place |
 | `install` refuses naming a directory | Foreign or changed content in the target root: remove it by hand or accept the recorded state; the installer never overwrites |
 | `uninstall` keeps a file | Its hash no longer matches the record — it is the consumer's text now |
