@@ -22,7 +22,8 @@ import { boardOf, type BoardModel } from "./board-model.ts";
 import { attentionPresentation, budgetPresentation, lanePresentation, type Presentation } from "./presentation.ts";
 import { orbitOf, type Orbit } from "./orbit.ts";
 import type { ReadView } from "./view-read.ts";
-import { detailTree } from "./detail-tree.ts";
+import { detailTree, shortTime } from "./detail-tree.ts";
+import type { BoardCard } from "./board-model.ts";
 
 export type TreeOptions = {
   /** The scoped class prefix, `.ssk-<8 hex of the package version hash>`; default the neutral placeholder. */
@@ -78,6 +79,9 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
   // While the board is windowed, a lane with no cards in the window collapses
   // out of the tree; the model keeps all eight lanes (F121-FR-020).
   const columns = board.windowed ? board.columns.filter((column) => column.cards.length > 0) : board.columns;
+  const lanes: Node[] = [];
+  // An empty lane folds to a rail only beside a lane that holds cards.
+  const anyCards = columns.some((column) => column.cards.length > 0);
   for (const column of columns) {
     const count = column.cards.length;
     const attrs: Record<string, string> = {
@@ -88,8 +92,16 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
     else attrs["data-lanes"] = column.lanes.join(" ");
     if (column.unknown) attrs["data-unknown-lane"] = "true";
 
+    if (count === 0 && anyCards) attrs["data-empty"] = "true";
+
     const parts: Node[] = [
-      el("div", { class: `${prefix}-column-header` }, [badge(prefix, lanePresentation(column.lanes[0] ?? "")), txt("span", {}, column.label)]),
+      el("div", { class: `${prefix}-column-header` }, [
+        el("span", { class: `${prefix}-column-pill` }, [
+          badge(prefix, lanePresentation(column.lanes[0] ?? "")),
+          txt("span", { class: `${prefix}-column-label` }, column.label),
+        ]),
+        txt("span", { class: `${prefix}-column-count` }, String(count)),
+      ]),
     ];
     if (column.lanes.length > 1) parts.push(txt("div", { class: `${prefix}-column-holds` }, `holds ${column.lanes.join(", ")}`));
     // A windowed column wraps its cards in one scroll container (`data-window`,
@@ -98,7 +110,7 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
     const windowKey = attrs["data-lane"] ?? (attrs["data-lanes"] ?? "");
     const cardParts: Node[] = column.groups.map((group) => {
       const header = group.feature === null ? "no feature" : group.feature;
-      return el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => (card.id === selected ? pressed(card.node) : card.node))]);
+      return el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("h3", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => (card.id === selected ? pressed(card.node) : card.node))]);
     });
     if (board.windowed && column.cards.length > 0) {
       const scrollTop = options.scrollTops?.[windowKey];
@@ -110,16 +122,12 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
     } else {
       parts.push(...cardParts);
     }
-    children.push(el("section", attrs, parts));
+    lanes.push(el("section", attrs, parts));
   }
 
-  // The detail panel of the selected card spans the board under its columns.
   const view = "banners" in input ? null : (input as ReadView);
-  const chosen = selected === null ? undefined : board.columns.flatMap((column) => column.cards).find((card) => card.id === selected);
-  if (chosen !== undefined) {
-    const feature = chosen.feature === null ? null : view?.featureDetails?.[chosen.feature] ?? null;
-    children.push(detailTree(chosen, feature, prefix));
-  }
+  const summary = board.windowed === true ? null : summaryTree(board, view, prefix);
+  if (summary !== null) children.push(summary);
 
   if (board.attention.length > 0 || board.attentionMore > 0) {
     const rows = board.attention.map((row) => {
@@ -147,12 +155,90 @@ export function boardTree(input: ReadView | BoardModel, options: TreeOptions = {
     children.push(el("div", { "data-budget": "", class: `${prefix}-budget` }, rows));
   }
 
+  // The lanes, and beside them the inspector of the selected card (F121-FR-022).
+  const body: Node[] = [el("div", { class: `${prefix}-lanes` }, lanes)];
+  const chosen = selected === null ? undefined : board.columns.flatMap((column) => column.cards).find((card) => card.id === selected);
+  if (chosen !== undefined) {
+    const feature = chosen.feature === null ? null : view?.featureDetails?.[chosen.feature] ?? null;
+    body.push(detailTree(chosen, feature, prefix));
+  }
+  children.push(el("div", { class: `${prefix}-body` }, body));
+
   return el("div", {
     "data-kanban": "",
     class: `${prefix}-board`,
     role: "region",
     "aria-label": "Specstride run",
   }, children);
+}
+
+/** At most this many feature rows in the run strip; the rest are counted. */
+export const SUMMARY_FEATURES = 4;
+
+/**
+ * The run strip above the lanes (direction B): one chip per column with its
+ * glyph, label and card count, then one row per feature — its name, how many
+ * of its cards sit on the approved lane, one segment per card in phase order
+ * tinted by the lane the view gave it (decorative: the counts are the text),
+ * and its run line when the view carries one. It only counts what the view
+ * placed; it assigns no lane. Features keep their first appearance in
+ * `view.cards` (the columns' order without a view). Pure.
+ */
+function summaryTree(board: BoardModel, view: ReadView | null, prefix: string): Node | null {
+  const cards: BoardCard[] = board.columns.flatMap((column) => [...column.cards]);
+  if (cards.length === 0) return null;
+  const chips = board.columns.map((column) => {
+    const count = column.cards.length;
+    // `data-tint`, not `data-lane`: only columns and cards carry `data-lane` (F121-FR-009).
+    const attrs: Record<string, string> = { class: `${prefix}-summary-chip`, "data-tint": column.lanes[0] ?? "" };
+    if (count === 0) attrs["data-empty"] = "true";
+    const presentation = lanePresentation(column.lanes[0] ?? "");
+    return el("span", attrs, [
+      badge(prefix, presentation),
+      txt("span", {}, column.lanes.length === 1 ? presentation.label : column.label),
+      txt("span", { class: `${prefix}-summary-count` }, String(count)),
+    ]);
+  });
+
+  const order: string[] = [];
+  const byFeature = new Map<string, BoardCard[]>();
+  const seen = view === null ? cards.map((card) => card.feature) : view.cards.map((card) => card.feature);
+  for (const feature of seen) {
+    if (feature !== null && !byFeature.has(feature)) { byFeature.set(feature, []); order.push(feature); }
+  }
+  for (const card of cards) {
+    if (card.feature === null) continue;
+    if (!byFeature.has(card.feature)) { byFeature.set(card.feature, []); order.push(card.feature); }
+    (byFeature.get(card.feature) as BoardCard[]).push(card);
+  }
+  const shown = order.filter((feature) => (byFeature.get(feature) as BoardCard[]).length > 0);
+  const rows = shown.slice(0, SUMMARY_FEATURES).map((feature) => {
+    const members = [...(byFeature.get(feature) as BoardCard[])].sort((a, b) =>
+      (a.phase ?? Number.MAX_SAFE_INTEGER) - (b.phase ?? Number.MAX_SAFE_INTEGER));
+    const approved = members.filter((card) => card.lane === "approved").length;
+    const parts: Node[] = [
+      el("div", { class: `${prefix}-summary-head` }, [
+        txt("h2", { class: `${prefix}-summary-feature` }, feature),
+        txt("span", { class: `${prefix}-summary-progress` }, `${approved} of ${members.length} approved`),
+      ]),
+      el("div", { class: `${prefix}-summary-track`, "aria-hidden": "true" },
+        members.map((card) => el("span", { class: `${prefix}-summary-seg`, "data-tint": card.lane }))),
+    ];
+    const run = view?.featureDetails?.[feature]?.run ?? null;
+    if (run !== null) {
+      const line = [run.id, run.state, run.phase === null ? null : `phase ${run.phase}`, run.lastAt === null ? null : `last event ${shortTime(run.lastAt)}`]
+        .filter((x) => x !== null).join(" · ");
+      parts.push(txt("div", { class: `${prefix}-summary-run`, title: line }, line));
+    }
+    return el("div", { class: `${prefix}-summary-row`, "data-feature": feature }, parts);
+  });
+  const rest = shown.length - rows.length;
+  if (rest > 0) rows.push(txt("div", { class: `${prefix}-summary-more` }, `and ${rest} more feature${rest === 1 ? "" : "s"}`));
+
+  return el("div", { class: `${prefix}-summary`, "data-summary": "" }, [
+    el("div", { class: `${prefix}-summary-chips` }, chips),
+    ...(rows.length > 0 ? [el("div", { class: `${prefix}-summary-features` }, rows)] : []),
+  ]);
 }
 
 /**

@@ -106,7 +106,25 @@ export function cardNode(card          )       {
     "data-rule-id": card.ruleId,
     "data-feature": card.feature ?? "",
     ...opens,
-  }, [txt("span", {}, cardText(card, feature, phase)), ...flags]);
+  }, [...cardLine(card, feature, phase), ...flags]);
+}
+
+/**
+ * The card's visible line (direction B): a titled phase card shows its phase
+ * as a short token and then the title, which truncates last; the whole line
+ * (`phase N — <title>`) rides on the title span as `title`, so a cut title is
+ * still readable on hover. Any other card keeps its one text span.
+ */
+function cardLine(card          , feature        , phase        )         {
+  const full = cardText(card, feature, phase);
+  const title = (card                       ).title;
+  if (typeof title !== "string" || title === "" || card.phase === null) {
+    return [txt("span", { "data-card-part": "title", title: full }, full)];
+  }
+  return [
+    txt("span", { "data-card-part": "phase", "aria-label": `phase ${phase}` }, phase),
+    txt("span", { "data-card-part": "title", title: full }, title),
+  ];
 }
 
 const boardCard = (card          )            => ({ ...card, node: cardNode(card) });

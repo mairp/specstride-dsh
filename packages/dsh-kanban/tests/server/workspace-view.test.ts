@@ -109,10 +109,13 @@ test("the signature is stable across reads and changes when a task is ticked", (
   assert.notEqual(a, c);
 });
 
-test("the card text carries the phase title as text; untitled cards stay as before", () => {
+test("the card text carries the phase token and the title as text, the full line as title; untitled cards stay as before", () => {
   const view = readWorkspaceView("/w", memFs({ "/w/specs/f1/tasks.md": TASKS }), NOW);
-  const text = (cardNode(view.cards[0]!) as { children: { text?: string }[] }).children[0]!.text;
-  assert.equal(text, "phase 1 — Setup");
+  const parts = (cardNode(view.cards[0]!) as { children: { text?: string; attrs: Record<string, string> }[] }).children;
+  assert.equal(parts[0]!.text, "1");
+  assert.equal(parts[0]!.attrs["data-card-part"], "phase");
+  assert.equal(parts[1]!.text, "Setup");
+  assert.equal(parts[1]!.attrs["title"], "phase 1 — Setup");
   const plain = cardNode({ id: "x", feature: "f", phase: 2, lane: "queued", ruleId: "r", flags: {} });
   assert.equal((plain as { children: { text?: string }[] }).children[0]!.text, "f · phase 2");
 });
