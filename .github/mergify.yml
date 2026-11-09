@@ -1,12 +1,15 @@
+# Mergify merges a PR into main once CI is green.
+# Opt out on a PR by labelling it `do-not-merge` or keeping it a draft.
+# Head branches are deleted by GitHub's "automatically delete head branches"
+# repo setting; main's branch protection requires `test`.
 pull_request_rules:
-  - name: automatic merge when CI passes
+  - name: merge when CI passes
     conditions:
-      - base=main
+      - base = main
+      - -draft
       - -conflict
-      - check-success=test
+      - label != do-not-merge
+      - check-success = test
     actions:
       merge:
         method: merge
-        strict: false
-      delete_head_branch:
-        force: false
