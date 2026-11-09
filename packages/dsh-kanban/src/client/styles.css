@@ -274,3 +274,143 @@
 .ssk-00000000 .ssk-00000000-norun {
   color: var(--dsw-alias-label-secondary);
 }
+
+/*
+ * The card detail (F121-FR-022): a card that carries a detail is a button —
+ * pointer, focus ring, and a pressed state while its panel is open. The panel
+ * spans every column under the board. Host tokens only.
+ */
+.ssk-00000000 .ssk-00000000-board [data-has-detail] {
+  cursor: pointer;
+}
+
+.ssk-00000000 .ssk-00000000-board [data-has-detail]:hover {
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.ssk-00000000 .ssk-00000000-board [data-has-detail]:focus-visible,
+.ssk-00000000 .ssk-00000000-detail-close:focus-visible,
+.ssk-00000000 .ssk-00000000-detail-title:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+.ssk-00000000 .ssk-00000000-board [data-selected="true"] {
+  background: var(--dsw-alias-bg-module-platform);
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.ssk-00000000 .ssk-00000000-detail {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-top: 2px solid var(--dsw-alias-state-business-primary);
+  border-radius: 0.375rem;
+}
+
+.ssk-00000000 .ssk-00000000-detail-header {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ssk-00000000 .ssk-00000000-detail-title {
+  flex: 1;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.ssk-00000000 .ssk-00000000-detail-close {
+  padding: 0.125rem 0.5rem;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ssk-00000000 .ssk-00000000-detail-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.ssk-00000000 .ssk-00000000-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+}
+
+.ssk-00000000 .ssk-00000000-detail-heading {
+  margin: 0 0 0.25rem;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.ssk-00000000 .ssk-00000000-detail-row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.5rem;
+}
+
+.ssk-00000000 .ssk-00000000-detail-key,
+.ssk-00000000 .ssk-00000000-detail-sub,
+.ssk-00000000 .ssk-00000000-detail-note,
+.ssk-00000000 .ssk-00000000-detail-more {
+  color: var(--dsw-alias-label-caption);
+}
+
+.ssk-00000000 .ssk-00000000-detail-value {
+  overflow-wrap: anywhere;
+}
+
+.ssk-00000000 .ssk-00000000-detail-list,
+.ssk-00000000 .ssk-00000000-detail-files,
+.ssk-00000000 .ssk-00000000-detail-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ssk-00000000 .ssk-00000000-detail-list > li {
+  display: flex;
+  gap: 0.375rem;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.ssk-00000000 .ssk-00000000-detail-id,
+.ssk-00000000 .ssk-00000000-detail-role {
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.ssk-00000000 .ssk-00000000-detail-tag {
+  color: var(--dsw-alias-label-caption);
+  white-space: nowrap;
+}
+
+.ssk-00000000 .ssk-00000000-detail-files,
+.ssk-00000000 .ssk-00000000-detail-log {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}

@@ -22,6 +22,7 @@ import { boardOf,                 } from "./board-model.js";
 import { attentionPresentation, budgetPresentation, lanePresentation,                   } from "./presentation.js";
 import { orbitOf,            } from "./orbit.js";
                                                
+import { detailTree } from "./detail-tree.js";
 
                            
                                                                                                               
@@ -30,6 +31,8 @@ import { orbitOf,            } from "./orbit.js";
                                  
                                                                                                      
                                                 
+                                                                    
+                             
   
 
 export const DEFAULT_PREFIX = "ssk-00000000";
@@ -41,6 +44,11 @@ export function badge(prefix        , presentation              )       {
     "aria-label": presentation.label,
     "data-gray": String(presentation.grayscale),
   }, presentation.glyph);
+}
+
+/** A card node shown as pressed and selected (its detail panel is open). */
+function pressed(node      )       {
+  return { ...node, attrs: { ...node.attrs, "aria-pressed": "true", "data-selected": "true" } };
 }
 
 /** The attention kind a banner's condition takes its presentation from. */
@@ -57,6 +65,7 @@ export function boardTree(input                       , options              = {
     return orbitTree(orbitOf(board), { prefix });
   }
 
+  const selected = options.selectedId ?? null;
   const children         = [];
   for (const banner of board.banners) {
     children.push(badge(prefix, attentionPresentation(conditionKind(banner.condition))));
@@ -89,7 +98,7 @@ export function boardTree(input                       , options              = {
     const windowKey = attrs["data-lane"] ?? (attrs["data-lanes"] ?? "");
     const cardParts         = column.groups.map((group) => {
       const header = group.feature === null ? "no feature" : group.feature;
-      return el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => card.node)]);
+      return el("div", { "data-feature": group.feature ?? "", class: `${prefix}-group` }, [txt("div", { class: `${prefix}-group-header` }, header), ...group.cards.map((card) => (card.id === selected ? pressed(card.node) : card.node))]);
     });
     if (board.windowed && column.cards.length > 0) {
       const scrollTop = options.scrollTops?.[windowKey];
@@ -102,6 +111,14 @@ export function boardTree(input                       , options              = {
       parts.push(...cardParts);
     }
     children.push(el("section", attrs, parts));
+  }
+
+  // The detail panel of the selected card spans the board under its columns.
+  const view = "banners" in input ? null : (input            );
+  const chosen = selected === null ? undefined : board.columns.flatMap((column) => column.cards).find((card) => card.id === selected);
+  if (chosen !== undefined) {
+    const feature = chosen.feature === null ? null : view?.featureDetails?.[chosen.feature] ?? null;
+    children.push(detailTree(chosen, feature, prefix));
   }
 
   if (board.attention.length > 0 || board.attentionMore > 0) {

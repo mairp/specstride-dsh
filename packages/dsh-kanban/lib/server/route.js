@@ -49,12 +49,35 @@ function mapResult(result                           )        {
                                    
 
 /** The answer for one session query: workspace, then one CLI call, then the mapping. */
-export async function answerSession(ctx         , sessionId        , cursor                )                 {
+/**
+ * Workspaces whose engine answered `unavailable` (no engine, or one without the
+ * `kanban` verbs), with the time to ask again. Within that minute the reader
+ * answers straight away: no two failing CLI spawns on every 5 s poll. Bounded,
+ * and the only state the half holds beside the newest view (F121-FR-018).
+ */
+const engineAbsent = new Map                ();
+export const ENGINE_RETRY_MS = 60_000;
+const ENGINE_MEMO_CAP = 64;
+
+/** For tests: forget which engines were absent. */
+export function forgetEngines()       {
+  engineAbsent.clear();
+}
+
+export async function answerSession(ctx         , sessionId        , cursor                , now         = Date.now())                 {
   const resolved = await resolveWorkspace(ctx, sessionId);
   if (!resolved.ok) return reply(200, { answer: "no-run" }); // resolution failure: 0 CLI calls (F121-FR-007)
-  // With a cursor the cycle is the blocking wait, then at most one status (F121-FR-004).
-  const engine = cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd);
-  if (engine.kind !== "unavailable") return mapResult(engine);
+  const askAgainAt = engineAbsent.get(resolved.cwd);
+  if (askAgainAt === undefined || now >= askAgainAt) {
+    // With a cursor the cycle is the blocking wait, then at most one status (F121-FR-004).
+    const engine = cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd);
+    if (engine.kind !== "unavailable") {
+      engineAbsent.delete(resolved.cwd);
+      return mapResult(engine);
+    }
+    if (engineAbsent.size >= ENGINE_MEMO_CAP && !engineAbsent.has(resolved.cwd)) engineAbsent.delete(engineAbsent.keys().next().value          );
+    engineAbsent.set(resolved.cwd, now + ENGINE_RETRY_MS);
+  }
   // No engine answers (none on PATH, or one without a mounted `status`): read
   // the workspace's own files instead of leaving the tab "unavailable".
   return mapResult(fromWorkspace(resolved.cwd, cursor ?? null));

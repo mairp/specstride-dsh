@@ -94,11 +94,18 @@ export function cardNode(card: ViewCard): Node {
   for (const [name, set] of named) {
     if (set === true) flags.push(txt("span", { "aria-label": name, "data-flag": name }, name));
   }
+  // A card that carries a detail (F121-FR-022) is also a button that opens it:
+  // focusable, named, and pressed while its panel is open. A card without one
+  // keeps exactly the four attributes.
+  const opens = card.detail !== undefined
+    ? { role: "button", tabindex: "0", "aria-pressed": "false", "data-has-detail": "true" }
+    : {};
   return el("div", {
     "data-card-id": card.id,
     "data-lane": card.lane,
     "data-rule-id": card.ruleId,
     "data-feature": card.feature ?? "",
+    ...opens,
   }, [txt("span", {}, cardText(card, feature, phase)), ...flags]);
 }
 

@@ -13,6 +13,7 @@
  */
 import { startPanePoller, type Pane as PollerPane } from "./poller.ts";
 import { toReact } from "./react-adapter.ts";
+import { boardTree } from "../shared/board-tree.ts";
 import styles from "./generated-styles.ts";
 
 export const VIEW_PATH = "/specstride/view";
@@ -45,7 +46,8 @@ export type ClientCtx = {
   effect?: (body: () => unknown, label?: string) => unknown;
 };
 
-type Pane = { dispose: () => void };
+/** An open pane: dispose it, or open/close the detail of one card (F121-FR-022). */
+export type Pane = { dispose: () => void; select: (cardId: string | null) => void; selected: () => string | null };
 
 /** Where a pane draws: the imperative container (style tag, notes) and the board element sink. */
 export type PaneHost = {
@@ -95,12 +97,15 @@ export function openPane(host: PaneHost, sessionId: string, reactOf: () => React
           else style.parentNode?.removeChild(style);
         }
       },
+      select() {},
+      selected: () => null,
     };
   }
 
-  let latest: TreeNode | undefined;
-  const show = (tree: TreeNode): void => {
-    latest = tree;
+  let latestView: Record<string, unknown> | undefined;
+  let selectedId: string | null = null;
+  const show = (tree: TreeNode, view?: Record<string, unknown>): void => {
+    if (view !== undefined) latestView = view;
     const react = reactOf();
     if (react !== undefined) pane.update?.(toReact(tree, react));
   };
@@ -110,6 +115,10 @@ export function openPane(host: PaneHost, sessionId: string, reactOf: () => React
    * not stack a new line on every tick.
    */
   let statusNode: { textContent?: string } | undefined;
+  /** A good answer voids the staleness line shown after an earlier failure. */
+  const fresh = (): void => {
+    if (statusNode !== undefined && statusNode.textContent !== "") statusNode.textContent = "";
+  };
   const line = (text: string): void => {
     if (statusNode === undefined) {
       const node = doc?.createElement("div");
@@ -126,10 +135,12 @@ export function openPane(host: PaneHost, sessionId: string, reactOf: () => React
     {
       sessionId,
       timers,
-      render: (tree) => show(tree),
+      render: (tree, _react, view) => show(tree, view),
       stale: line,
       message: line,
+      fresh,
       token: tokenOf(doc),
+      selected: () => selectedId,
     },
     reactOf,
   );
@@ -142,7 +153,78 @@ export function openPane(host: PaneHost, sessionId: string, reactOf: () => React
         else style.parentNode?.removeChild(style);
       }
     },
+    // Opening or closing a detail re-renders the newest view at once — no fetch.
+    select(cardId) {
+      selectedId = cardId;
+      if (latestView !== undefined) show(boardTree(latestView as never, { selectedId }) as TreeNode);
+    },
+    selected: () => selectedId,
   };
+}
+
+type Eventish = {
+  type?: string;
+  key?: string;
+  target?: unknown;
+  preventDefault?: () => void;
+};
+type Elementish = {
+  closest?: (selector: string) => Elementish | null;
+  getAttribute?: (name: string) => string | null;
+  focus?: () => void;
+  querySelector?: (selector: string) => Elementish | null;
+  querySelectorAll?: (selector: string) => Iterable<Elementish>;
+};
+
+/**
+ * The pointer and keyboard of the card detail (F121-FR-022). Delegated on the
+ * pane's own wrapper — no handler travels through the tree (T006). A card with
+ * a detail opens it on click, Enter or Space; the Close button and Escape close
+ * it and give the focus back to the card; a second click on the open card closes it.
+ */
+export function detailEvent(event: Eventish, pane: Pick<Pane, "select" | "selected">, root?: Elementish | null): void {
+  const target = event.target as Elementish | undefined;
+  const closer = target?.closest?.("[data-kanban-detail-close]");
+  const card = target?.closest?.("[data-has-detail]");
+  const open = pane.selected();
+  // React applies the new tree after this handler returns: focus on the next tick.
+  const later = (fn: () => void): void => {
+    if (typeof globalThis.setTimeout === "function") globalThis.setTimeout(fn, 0);
+    else fn();
+  };
+  const refocus = (id: string | null): void => {
+    if (id === null || root === null || root === undefined) return;
+    later(() => {
+      for (const node of root.querySelectorAll?.("[data-card-id]") ?? []) {
+        if (node.getAttribute?.("data-card-id") === id) node.focus?.();
+      }
+    });
+  };
+  if (event.type === "keydown") {
+    if (event.key === "Escape" && open !== null) {
+      event.preventDefault?.();
+      pane.select(null);
+      refocus(open);
+      return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && card !== null && card !== undefined) {
+      event.preventDefault?.();
+      const id = card.getAttribute?.("data-card-id") ?? null;
+      pane.select(id === open ? null : id);
+      return;
+    }
+    return;
+  }
+  if (closer !== null && closer !== undefined) {
+    pane.select(null);
+    refocus(open);
+    return;
+  }
+  if (card !== null && card !== undefined) {
+    const id = card.getAttribute?.("data-card-id") ?? null;
+    pane.select(id === open ? null : id);
+    if (id !== open) later(() => root?.querySelector?.("[data-detail-title]")?.focus?.());
+  }
 }
 
 type Hooks = {
@@ -173,14 +255,24 @@ export function kanbanView(reactOf: () => Reactish | undefined): (props: { sessi
     const React = reactOf() as Hooks | undefined;
     if (React?.useRef === undefined || React.useState === undefined || React.useEffect === undefined) return null;
     const ref = React.useRef<unknown>(null);
+    const outer = React.useRef<unknown>(null);
+    const paneRef = React.useRef<Pane | null>(null);
     const [board, setBoard] = React.useState<unknown>(null);
     React.useEffect(() => {
       const pane = openPane({ container: ref.current ?? undefined, update: setBoard }, props.sessionId, reactOf);
-      return () => pane.dispose();
+      paneRef.current = pane;
+      return () => {
+        paneRef.current = null;
+        pane.dispose();
+      };
     }, [props.sessionId]);
+    const onEvent = (event: Eventish): void => {
+      const pane = paneRef.current;
+      if (pane !== null) detailEvent(event, pane, outer.current as Elementish | null);
+    };
     return React.createElement(
       "div",
-      { className: "ssk-00000000", "data-kanban-pane": "" },
+      { className: "ssk-00000000", "data-kanban-pane": "", ref: outer, onClick: onEvent, onKeyDown: onEvent },
       React.createElement("div", { ref, "data-kanban-host": "" }),
       board,
     );

@@ -22,6 +22,28 @@ The reply is always JSON with the three hardening headers
 | `method-not-allowed` | `{ answer }` (405, `Allow: GET`)                    | Non-GET request.                                                     |
 | `bad-request`| `{ answer }` (404)                                         | Wrong path.                                                          |
 
+### The `view` body (F121-FR-022)
+
+A `view` is a `specstride.view/1`. Two optional, additive fields carry the card
+detail; a client that does not know them ignores them, and their absence means
+"no detail" (the card is not a button):
+
+- `cards[].detail` — the phase's scope (goal, independent test, checkpoint,
+  tasks with tick/markers/critic verdict, files), approval (time, attempt,
+  critic model, commit), evidence (relative name and size), attempts across
+  every run of the feature, counters, micro units and usage.
+- `featureDetails.<feature>` — the live run (id, launch, state, phase), its
+  agents (role, what, pid, alive, harness, profile, model), launches (reason,
+  state, exit or signal, engine run), the last launch-log lines, usage, cost
+  and limits.
+
+Every string is ≤ 240 bytes with control characters removed; every list is
+bounded and says how many it left out; no absolute path, prompt, command line,
+signature or key is carried.
+
+When the engine answers `unavailable` for a workspace, the server answers from
+the workspace reader and does not ask the engine again for 60 s.
+
 ## What the client does
 
 The poller polls every 5 s while the pane is open, with **at most one request
@@ -31,11 +53,14 @@ previous one settled), and every answer is handled row by row:
 | Row                                     | What the client does                                                                                                                                                                      |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `view`                                  | Re-render from the new view only: the previous tree is discarded, the cursor token and the "last good" time are recorded, the staleness banner is removed, the next poll is 5 s away and the backoff is reset. |
-| `unchanged`                             | No re-render: the last view stays on screen exactly as it was; the cursor token is refreshed when the answer carries one; the next poll is 5 s away.                                      |
+| `unchanged`                             | No re-render: the last view stays on screen exactly as it was; the cursor token is refreshed when the answer carries one; the staleness banner is removed; the next poll is 5 s away.     |
 | `unavailable`                           | Keep the last view and add the banner `Not updated since <time>` with the time of the last good view; back off 1 s, 2 s, 4 s … capped at 30 s until a good answer.                        |
 | network error (fetch throws / bad JSON) | Exactly the `unavailable` row: keep the last view, banner, backoff.                                                                                                                       |
 | client limit (no answer within 35 s)    | Abort the outstanding request, keep the last view, add the same banner, and continue polling under the same backoff.                                                                       |
 | `no-run` / `refused-schema`             | Keep the last view (or nothing, before the first view) and surface the answer's line; the poll keeps its 5 s cadence.                                                                       |
+
+Opening or closing a card's detail re-renders the newest view at once, with no
+request; the selection is kept across polls by card id.
 
 Backoff restarts at 1 s after every good answer (`view` or `unchanged`), doubles
 per failure and never exceeds 30 s.

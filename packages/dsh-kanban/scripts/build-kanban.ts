@@ -17,6 +17,7 @@ import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkContractValues, writeContractValues, presentationValues } from "./gen-contract-values.ts";
 import { formatFinding, scanTree } from "./scan.ts";
+import { DETAIL_SETS } from "../src/shared/presentation.ts";
 
 export const PLUGIN_ID = "@specstride/dsh-kanban";
 export const EXTERNALS = ["react", "@deepseek-ai/dsh-client-runtime/client"] as const;
@@ -37,6 +38,11 @@ export function grayRules(): string {
   }
   for (const key of ["LANE_PRESENTATION_UNKNOWN", "ATTENTION_PRESENTATION_UNKNOWN", "BUDGET_PRESENTATION_UNKNOWN"]) {
     grays.add((values[key] as { grayscale: number }).grayscale);
+  }
+  // The plugin-local sets of the card detail panel (F121-FR-022).
+  for (const set of Object.values(DETAIL_SETS)) {
+    for (const member of Object.values(set.members)) grays.add(member.grayscale);
+    grays.add(set.unknown.grayscale);
   }
   return [...grays]
     .sort((a, b) => a - b)
