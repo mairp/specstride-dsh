@@ -35,7 +35,8 @@ function sandbox() {
   return { project, dshHome, home, env };
 }
 
-const clean = { missing: [], stale: [], shadowed: [] };
+// The sandbox env carries no PATH, so the shim is (correctly) not on it.
+const clean = { missing: [], stale: [], shadowed: [], shimOnPath: false };
 
 test("a project-scope install satisfies the check", () => {
   const s = sandbox();

@@ -114,3 +114,15 @@ test("banners stay direct children of the board root", () => {
   const root = boardTree(dead);
   assert.ok(root.children.some((c) => c.attrs["role"] === "status"));
 });
+
+test("the run strip leads with the feature being run, then the newest run, then features never run", () => {
+  const at = (iso: string, state: string): FeatureDetail => featureDetail({ id: `run-${iso}`, launch: null, state, phase: 1, startedAt: null, lastAt: iso });
+  const v = view(["f100", "f101", "f102", "f152", "f105"].map((f) => card(f, 1, "approved")), {
+    f101: at("2026-11-08T10:00:00.000Z", "approved"),
+    f105: at("2026-11-09T09:00:00.000Z", "lost"),
+    f152: at("2026-11-09T08:00:00.000Z", "running"),
+  });
+  const strip = flatten(boardTree(v)).find((n) => n.attrs["data-summary"] !== undefined)!;
+  assert.deepEqual(byClass(flatten(strip), "summary-feature").map((n) => n.text), ["f152", "f105", "f101", "f100"]);
+  assert.equal(byClass(flatten(strip), "summary-more")[0]!.text, "and 1 more feature");
+});

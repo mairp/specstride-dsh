@@ -77,3 +77,19 @@ test("the kanban plugin pinned as a file: tarball under ~/.dsh is installed and 
   assert.equal(observed.installed, true);
   assert.equal(observed.exact, true);
 });
+
+test("host.skills-installed fails when the skills' shim specstride-dsh is not on PATH, and the fix says so", async () => {
+  const { skillsInstalledObservation } = await import("../../src/doctor.ts");
+  const empty = mkdtempSync(join(tmpdir(), "doctor-path-"));
+  const observed = skillsInstalledObservation({ PATH: empty, HOME: "" } as NodeJS.ProcessEnv, empty);
+  assert.equal(observed.shimOnPath, false);
+  const { findings } = await runDoctor({ "skills-installed": { ...observed, missing: [] } }, { engineVersion: ENGINE_VERSION });
+  const skills = findings.find((f) => f.id === "host.skills-installed")!;
+  assert.equal(skills.severity, "fail");
+  assert.match(skills.fix, /specstride-dsh <cmd>`, which is not on PATH/);
+
+  const bin = mkdtempSync(join(tmpdir(), "doctor-bin-"));
+  writeFileSync(join(bin, "specstride-dsh"), "#!/bin/sh\n");
+  chmodSync(join(bin, "specstride-dsh"), 0o755);
+  assert.equal(skillsInstalledObservation({ PATH: bin, HOME: "" } as NodeJS.ProcessEnv, empty).shimOnPath, true);
+});

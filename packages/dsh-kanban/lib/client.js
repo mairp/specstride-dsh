@@ -1236,8 +1236,9 @@ window.__ModuleLoader__.load({
        * of its cards sit on the approved lane, one segment per card in phase order
        * tinted by the lane the view gave it (decorative: the counts are the text),
        * and its run line when the view carries one. It only counts what the view
-       * placed; it assigns no lane. Features keep their first appearance in
-       * `view.cards` (the columns' order without a view). Pure.
+       * placed; it assigns no lane. Features with a run lead (live first, then the
+       * newest last event), the rest keep their first appearance in `view.cards`
+       * (the columns' order without a view). Pure.
        */
       function summaryTree(board            , view                 , prefix        )              {
         const cards              = board.columns.flatMap((column) => [...column.cards]);
@@ -1266,7 +1267,21 @@ window.__ModuleLoader__.load({
           if (!byFeature.has(card.feature)) { byFeature.set(card.feature, []); order.push(card.feature); }
           (byFeature.get(card.feature)               ).push(card);
         }
-        const shown = order.filter((feature) => (byFeature.get(feature)               ).length > 0);
+        // The features a run touched lead, the one being run first: a live run
+        // (running or between passes) before an ended one, then the newest last
+        // event; features never run follow in first-appearance order. In a
+        // workspace holding a whole spec corpus this puts the feature at work on
+        // top instead of the oldest specs. Re-reads the view's run facts only.
+        const withCards = order.filter((feature) => (byFeature.get(feature)               ).length > 0);
+        const runOf = (feature        ) => view?.featureDetails?.[feature]?.run ?? null;
+        const live = (feature        ) => { const s = runOf(feature)?.state; return s === "running" || s === "between passes"; };
+        const ran = withCards.filter((feature) => runOf(feature) !== null);
+        const rank = new Map(withCards.map((feature, index) => [feature, index]));
+        ran.sort((a, b) =>
+          Number(live(b)) - Number(live(a))
+          || (runOf(b)?.lastAt ?? "").localeCompare(runOf(a)?.lastAt ?? "")
+          || (rank.get(a)          ) - (rank.get(b)          ));
+        const shown = [...ran, ...withCards.filter((feature) => runOf(feature) === null)];
         const rows = shown.slice(0, SUMMARY_FEATURES).map((feature) => {
           const members = [...(byFeature.get(feature)               )].sort((a, b) =>
             (a.phase ?? Number.MAX_SAFE_INTEGER) - (b.phase ?? Number.MAX_SAFE_INTEGER));
