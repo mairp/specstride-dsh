@@ -3,13 +3,15 @@
  * The control CLI of the dsh host (T010, research.md R1): bin
  * `specstride-host-dsh`. Thin arg parsing and exit-code plumbing only —
  * `install`/`uninstall` run the installer/uninstaller of `src/installer.ts`
- * (T026–T027), `doctor` the runner of `src/doctor.ts` (T021), `eval` the
+ * (T026–T027), `doctor` the runner of `src/doctor.ts` (T021) — both as
+ * compiled by `scripts/build-host-cli.ts` into `bin/lib/`, so they run from
+ * the installed package, which ships only `bin/` and `skills/` — `eval` the
  * person-started paid lane of `src/evals/paid-lane.ts` (T031) — a mode that
  * spends refuses before any call without a model (`RunRefusedError`). An
  * unknown subcommand refuses with one line.
  */
 
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const WIRED = new Set(["install", "uninstall", "doctor", "eval"]);
@@ -43,19 +45,26 @@ export async function dispatch(argv) {
     return 3;
   }
   if (subcommand === "doctor") {
-    const { doctorMain } = await import("../src/doctor.ts");
+    const { doctorMain } = await import("./lib/doctor.mjs");
     return doctorMain(args.slice(1));
   }
   if (subcommand === "install") {
-    const { installMain } = await import("../src/installer.ts");
+    const { installMain } = await import("./lib/installer.mjs");
     return installMain(process.env, args.slice(1));
   }
   if (subcommand === "uninstall") {
-    const { uninstallMain } = await import("../src/installer.ts");
+    const { uninstallMain } = await import("./lib/installer.mjs");
     return uninstallMain(process.env, args.slice(1));
   }
   if (subcommand === "eval") {
-    const { evalMain } = await import("../src/evals/paid-lane.ts");
+    // The paid lane reads the suites under evals/, which the package never
+    // ships (T027): it runs from a repository checkout only.
+    const lane = new URL("../src/evals/paid-lane.ts", import.meta.url);
+    if (!existsSync(fileURLToPath(lane))) {
+      console.error("specstride-host-dsh eval: runs from a repository checkout of specstride-dsh (the eval suites are not shipped in the package)");
+      return 2;
+    }
+    const { evalMain } = await import(lane.href);
     return evalMain(args.slice(1));
   }
   console.error(`specstride-host-dsh ${subcommand}: no handler registered`);

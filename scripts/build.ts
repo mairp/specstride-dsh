@@ -44,6 +44,7 @@ import {
 import { staticFindings, dshStaticCheck, buildJobsOf } from "../src/evals/driver.ts";
 import { gradeFixturesForBuild } from "../src/evals/fixtures-gate.ts";
 import { buildKanban } from "../packages/dsh-kanban/scripts/build-kanban.ts";
+import { buildHostCli } from "./build-host-cli.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fail = (message: string): never => {
@@ -368,7 +369,8 @@ for (const keeper of [
 console.log(
   `release facts: engine ${engineVersion} (core-pin.json) — built by scripts/build.ts; install record carries it verbatim; publish stays the owner's`,
 );
-console.log(`build ok: ${written.length} skill(s), shim rendered, checks passed`);
+const hostCli = buildHostCli();
+console.log(`build ok: ${written.length} skill(s), shim rendered, host CLI compiled (${hostCli.length} file(s) in bin/lib), checks passed`);
 
 // The kanban plugin stage (specs/121-dsh-kanban, T007): after 120's stages.
 try {
