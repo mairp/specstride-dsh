@@ -124,12 +124,18 @@ const NAMED_COLOURS = new Set(
   ("aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato transparent turquoise violet wheat white whitesmoke yellow yellowgreen").split(" "),
 );
 const DSW_VAR = /var\(\s*--dsw-[\w-]+\s*(?:,\s*var\(\s*--dsw-[\w-]+\s*\)\s*)?\)/g;
+/**
+ * A plugin-local custom property (`--ssk-…`). It may only ever be declared
+ * with a value that passes `colourProblem` itself (see `declarations`), so a
+ * `var(--ssk-…)` resolves to host tokens only and declares no colour of ours.
+ */
+const SSK_VAR = /var\(\s*--ssk-[\w-]+\s*\)/g;
 
 /** A `color-mix(in srgb, …)` whose operands, once the `--dsw-` vars are gone, are only percentages. */
 const DSW_ONLY_MIX = /color-mix\(\s*in\s+srgb\s*,[\s\d.%,]*\)/gi;
 
 function colourProblem(value: string): string | null {
-  let rest = value.replace(DSW_VAR, " ");
+  let rest = value.replace(DSW_VAR, " ").replace(SSK_VAR, " ");
   // Mixing two host tokens declares no colour of the plugin's own (the
   // Trajectory tab's violet is one); innermost first, so nesting reduces too.
   for (let before = ""; before !== rest; ) {
@@ -169,7 +175,9 @@ function scanStyles(file: string, text: string, root: string): Finding[] {
   const declarations = (from: number, to: number) => {
     for (const declaration of code.slice(from, to).matchAll(/([a-z-]+)\s*:\s*([^;{}]+)/gi)) {
       const property = (declaration[1] as string).toLowerCase();
-      if (COLOUR_PROPERTY.test(property)) {
+      if (property.startsWith("--") && !property.startsWith("--ssk-")) {
+        add("css-colour", from + (declaration.index ?? 0), `${property} — a custom property of ours must be named --ssk-…`);
+      } else if (COLOUR_PROPERTY.test(property) || property.startsWith("--ssk-")) {
         const problem = colourProblem(declaration[2] as string);
         if (problem !== null) add("css-colour", from + (declaration.index ?? 0), `${property}: ${(declaration[2] as string).trim()} — ${problem}`);
       }

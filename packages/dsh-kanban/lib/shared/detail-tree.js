@@ -72,7 +72,7 @@ function scopeSection(prefix        , d             )       {
     if (t.verdict !== null) parts.push(badge(prefix, taskPresentation(t.verdict === "MET" ? "met" : t.verdict === "UNMET" ? "unmet" : t.verdict)));
     return el("li", { class: `${prefix}-detail-task`, "data-task": t.id, "data-done": String(t.done) }, parts);
   });
-  children.push(el("ul", { class: `${prefix}-detail-list` }, items));
+  children.push(el("ul", { class: `${prefix}-detail-list`, "data-detail-tasks": "" }, items));
   children.push(...more(prefix, d.tasksOmitted, "tasks"));
   if (d.files.length > 0) {
     children.push(txt("div", { class: `${prefix}-detail-sub` }, "Files"));
@@ -89,7 +89,14 @@ function liveSection(prefix        , d             , f                      )   
     return section(prefix, "live", "Live", children);
   }
   const r = f.run;
-  children.push(row(prefix, "Run", [r.id, r.launch ?? "started by hand", r.state, r.phase === null ? null : `phase ${r.phase}`].filter((x) => x !== null).join(" · ")));
+  children.push(el("div", { class: `${prefix}-detail-row` }, [
+    txt("span", { class: `${prefix}-detail-key` }, "Run"),
+    el("span", { class: `${prefix}-detail-value ${prefix}-detail-chips` }, [
+      txt("span", { class: `${prefix}-detail-mono`, title: r.id }, r.id),
+      ...[r.launch ?? "started by hand", r.state, r.phase === null ? null : `phase ${r.phase}`]
+        .filter((x)              => x !== null).map((fact) => txt("span", { class: `${prefix}-detail-chip` }, fact)),
+    ]),
+  ]));
   children.push(row(prefix, "Last event", shortTime(r.lastAt)));
   const live = r.state === "running" || r.state === "between passes";
   if (!d.current) {
@@ -123,17 +130,20 @@ function attemptsSection(prefix        , d             )       {
   const children         = [];
   if (d.attempts.length === 0) children.push(txt("div", { class: `${prefix}-detail-note` }, "No attempt yet"));
   else {
-    children.push(el("ol", { class: `${prefix}-detail-list` }, d.attempts.map((a) => {
-      const facts = [
-        `attempt ${a.attempt}`,
-        a.run,
+    children.push(el("ol", { class: `${prefix}-detail-rows` }, d.attempts.map((a) => {
+      const tail = [
         a.launch ?? "by hand",
         a.strategy,
-        `${shortTime(a.startedAt)} → ${a.endedAt === null ? "now" : shortTime(a.endedAt)}`,
         `${a.passes} pass${a.passes === 1 ? "" : "es"}`,
         a.errors > 0 ? `${a.errors} error${a.errors === 1 ? "" : "s"}` : null,
       ].filter((x) => x !== null).join(" · ");
-      return el("li", { class: `${prefix}-detail-attempt`, "data-outcome": a.outcome }, [badge(prefix, outcomePresentation(a.outcome)), txt("span", {}, facts)]);
+      return el("li", { class: `${prefix}-detail-attempt`, "data-outcome": a.outcome }, [
+        badge(prefix, outcomePresentation(a.outcome)),
+        txt("span", { class: `${prefix}-detail-id` }, `attempt ${a.attempt}`),
+        txt("span", { class: `${prefix}-detail-mono`, title: a.run }, a.run),
+        txt("span", { class: `${prefix}-detail-tag` }, tail),
+        txt("span", { class: `${prefix}-detail-when` }, `${shortTime(a.startedAt)} → ${a.endedAt === null ? "now" : shortTime(a.endedAt)}`),
+      ]);
     })));
     children.push(...more(prefix, d.attemptsOmitted, "attempts"));
   }
@@ -153,14 +163,16 @@ function attemptsSection(prefix        , d             )       {
 function launchesSection(prefix        , f                      )              {
   if (f === null || f.launches.length === 0) return null;
   const items = [...f.launches].reverse().map((l) => {
-    const facts = [l.launch, l.reason, l.state, l.exit, `${shortTime(l.at)} → ${l.endedAt === null ? (l.state === "running" ? "now" : "?") : shortTime(l.endedAt)}`, l.run === null ? "no engine run" : l.run, l.current ? "current" : null]
+    const tail = [l.reason, l.state, l.exit, l.run === null ? "no engine run" : l.run, l.current ? "current" : null]
       .filter((x) => x !== null).join(" · ");
     return el("li", { class: `${prefix}-detail-launch`, "data-launch": l.launch, "data-state": l.state, ...(l.current ? { "aria-current": "true" } : {}) }, [
       badge(prefix, launchPresentation(l.state)),
-      txt("span", {}, facts),
+      txt("span", { class: `${prefix}-detail-mono`, title: l.launch }, l.launch),
+      txt("span", { class: `${prefix}-detail-tag` }, tail),
+      txt("span", { class: `${prefix}-detail-when` }, `${shortTime(l.at)} → ${l.endedAt === null ? (l.state === "running" ? "now" : "?") : shortTime(l.endedAt)}`),
     ]);
   });
-  return section(prefix, "launches", "Launches", [el("ol", { class: `${prefix}-detail-list` }, items), ...more(prefix, f.launchesOmitted, "launches")]);
+  return section(prefix, "launches", "Launches", [el("ol", { class: `${prefix}-detail-rows` }, items), ...more(prefix, f.launchesOmitted, "launches")]);
 }
 
 function costSection(prefix        , d             , f                      )       {
@@ -178,10 +190,14 @@ function costSection(prefix        , d             , f                      )   
 export function detailTree(card          , feature                      , prefix        )       {
   const title = typeof card.title === "string" && card.title !== "" ? card.title : card.id;
   const heading = card.phase === null ? title : `Phase ${card.phase} — ${title}`;
+  const lane = lanePresentation(card.lane);
   const header = el("div", { class: `${prefix}-detail-header` }, [
-    badge(prefix, lanePresentation(card.lane)),
-    txt("h3", { class: `${prefix}-detail-title`, tabindex: "-1", "data-detail-title": "" }, `${card.feature ?? "no feature"} · ${heading}`),
-    txt("button", { type: "button", class: `${prefix}-detail-close`, "data-kanban-detail-close": "", "aria-label": "Close detail" }, "Close"),
+    el("div", { class: `${prefix}-detail-meta` }, [
+      el("span", { class: `${prefix}-detail-lane` }, [badge(prefix, lane), txt("span", {}, lane.label)]),
+      txt("span", { class: `${prefix}-detail-feature` }, card.feature ?? "no feature"),
+      txt("button", { type: "button", class: `${prefix}-detail-close`, "data-kanban-detail-close": "", "aria-label": "Close detail" }, "Close"),
+    ]),
+    txt("h3", { class: `${prefix}-detail-title`, tabindex: "-1", "data-detail-title": "" }, heading),
   ]);
   const d = card.detail;
   const body         = d === undefined
@@ -190,6 +206,7 @@ export function detailTree(card          , feature                      , prefix
   return el("aside", {
     class: `${prefix}-detail`,
     "data-kanban-detail": card.id,
+    "data-lane": card.lane,
     role: "region",
     "aria-label": `Detail of ${heading}`,
   }, [header, el("div", { class: `${prefix}-detail-body` }, body)]);

@@ -13,6 +13,8 @@ const negatives: [fixture: string, rule: string, mention: RegExp][] = [
   ["no-lane-assignment", "no-lane-assignment", /card\.lane = "reviewing"/],
   ["no-lane-assignment-columnof", "no-lane-assignment", /columnOf reads card\.ruleId/],
   ["css-colour", "css-colour", /#ff0000/],
+  ["css-colour-custom", "css-colour", /--ssk-lane: #00ff00/],
+  ["css-colour-custom", "css-colour", /--accent — a custom property of ours must be named --ssk-/],
   ["css-selector", "css-selector", /:root|\.card/],
   ["markup-sink", "markup-sink", /innerHTML/],
   ["nondeterminism", "nondeterminism", /Date/],
@@ -20,7 +22,7 @@ const negatives: [fixture: string, rule: string, mention: RegExp][] = [
 ];
 
 for (const [name, rule, mention] of negatives) {
-  test(`fixture ${name} fails rule ${rule}`, () => {
+  test(`fixture ${name} fails rule ${rule} (${mention.source})`, () => {
     const findings = scanTree(fixture(name));
     const named = findings.filter((finding) => finding.rule === rule);
     assert.ok(named.length > 0, `expected rule ${rule}; got ${findings.map(formatFinding).join("; ")}`);
