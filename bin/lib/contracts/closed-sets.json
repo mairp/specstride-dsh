@@ -1,0 +1,47 @@
+{
+  "$schema": "specstride.closed-sets-120/1",
+  "feature": "120-host-dsh",
+  "date": "2026-11-06",
+  "note": "Sets this feature proposes to own. Engine rows are consumed, never redefined. Row 144 (host skill logical ids) is consumed; its literals live in packages/contracts/src/enums/sets-110-119.ts and an unknown id fails the engine build. Row 145 (context-cost checks) is engine-owned; this feature carries its own equivalents in CI (F120-SC-004). The [SPECSTRIDE-REFUSE] refusal prefix is not a closed set: it is the port's refusal grammar (PROTOCOL_MISMATCH_LINE of packages/contracts/src/ep/host.ts and the kit's refusalLine/missingCliLine).",
+  "consumedFromEngine": [
+    { "row": 84, "set": "host-capabilities", "members": ["hooks", "statusSurface", "background", "evals", "model", "stateRootWritable"], "unknownValue": "Ignored", "use": "the six capability names of annex H §H.1 and their fallback wording (host-capabilities.json) are consumed as-is (F120-FR-015)" },
+    { "row": 144, "set": "host-skill-logical-ids", "members": ["specstride-run", "specstride-reverse", "doctor"] }
+  ],
+  "proposedByFeature": [
+    {
+      "id": "dsh-skill-spellings",
+      "owner": 120,
+      "members": [
+        { "logicalId": "specstride-run", "spelling": "specstride-run", "modelInvocable": true },
+        { "logicalId": "specstride-reverse", "spelling": "specstride-reverse", "modelInvocable": true },
+        { "logicalId": "doctor", "spelling": "specstride-doctor", "modelInvocable": false }
+      ],
+      "rule": "the spelling is the directory name; dsh has no colon namespace (R4 Q5); a build check holds this file against the rendered frontmatter"
+    },
+    {
+      "id": "dsh-install-scopes",
+      "owner": 120,
+      "members": [
+        { "scope": "user", "root": "$DSH_HOME/skills", "rank": 400 },
+        { "scope": "project", "root": "<projectRoot>/.dsh/skills", "rank": 100 },
+        { "scope": "shared", "root": "~/.agents/skills", "rank": 500 }
+      ],
+      "rule": "exactly one root per install; other scanned roots (<projectRoot>/.agents/skills rank 200, customSkillDirs rank 300) are never install targets; unknown scope refuses (F120-FR-020)"
+    },
+    {
+      "id": "dsh-host-checks",
+      "owner": 120,
+      "members": [
+        "host.cli-found",
+        "host.protocol-supported",
+        "host.dsh-version",
+        "host.skills-installed",
+        "host.state-root-writable",
+        "host.permission-mode",
+        "host.kanban-plugin"
+      ],
+      "ownerNote": "host.kanban-plugin appended by specs/121-dsh-kanban (F121-FR-019); the set itself stays owner 120",
+      "rule": "the doctor of this package runs exactly these; unknown id in a filter exits 3; kit-shaped per contracts/doctor-host-checks.md"
+    }
+  ]
+}

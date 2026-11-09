@@ -47,8 +47,9 @@ import {
 } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
 import { skillContentHash, INSTALLS_OR_UPDATES_THE_CLI } from "@specstride/host-kit";
+import { dependencyManifest, packageFile, packageRootOf } from "./package-root.ts";
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = packageRootOf(import.meta.url);
 const RECORD_FILENAME = ".specstride-host-dsh-install.json";
 
 /** The kit declares this host installs and updates no CLI. */
@@ -62,7 +63,7 @@ if (INSTALLS_OR_UPDATES_THE_CLI !== false) {
 
 const CLOSED_SETS = JSON.parse(
   readFileSync(
-    join(ROOT, "contracts", "closed-sets.json"),
+    packageFile(ROOT, join("contracts", "closed-sets.json")),
     "utf8",
   ),
 ) as { proposedByFeature: { id: string; members: { scope: string; root: string }[] }[] };
@@ -105,7 +106,7 @@ function readManifest(): Manifest {
 function readKitVersion(): string {
   const kit = JSON.parse(
     readFileSync(
-      join(ROOT, "node_modules", "@specstride", "host-kit", "package.json"),
+      dependencyManifest(ROOT, "@specstride/host-kit"),
       "utf8",
     ),
   ) as { version?: string };

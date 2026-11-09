@@ -53,11 +53,12 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DSH_VERSION_RANGE, DSH_VERSION_PIN, dshHostFacts } from "./host-facts.ts";
 import { dshInstallCommand } from "./shim.ts";
+import { packageFile, packageRootOf } from "./package-root.ts";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = packageRootOf(import.meta.url);
 const CLOSED_SETS = JSON.parse(
   readFileSync(
-    join(ROOT, "contracts", "closed-sets.json"),
+    packageFile(ROOT, join("contracts", "closed-sets.json")),
     "utf8",
   ),
 ) as { proposedByFeature: { id: string; members: string[] }[] };

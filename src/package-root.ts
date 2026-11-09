@@ -1,0 +1,54 @@
+/**
+ * Where this package's own files are, in a repository checkout and in an
+ * installed package alike. The CLI's code runs from `src/` in a checkout and
+ * from `bin/lib/` (compiled by `scripts/build-host-cli.ts`) once packed, so no
+ * module may assume its depth: the root is the nearest directory up whose
+ * `package.json` names this package, and a data file the package does not
+ * ship at its checkout path (`files` is `bin/` and `skills/` only, T027) is
+ * read from the copy the build puts under `bin/lib/`.
+ */
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const PACKAGE_NAME = "@specstride/host-dsh";
+
+/** The directory holding this package's `package.json`, found from a module URL. */
+export function packageRootOf(moduleUrl: string): string {
+  let dir = dirname(realpathSync(fileURLToPath(moduleUrl)));
+  for (;;) {
+    const manifest = join(dir, "package.json");
+    if (existsSync(manifest)) {
+      try {
+        if ((JSON.parse(readFileSync(manifest, "utf8")) as { name?: unknown }).name === PACKAGE_NAME) return dir;
+      } catch {
+        // not ours; keep walking
+      }
+    }
+    const up = dirname(dir);
+    if (up === dir) throw new Error(`${PACKAGE_NAME}: no package.json naming this package above ${moduleUrl}`);
+    dir = up;
+  }
+}
+
+/** A data file of the package: its checkout path, else the copy shipped under `bin/lib/`. */
+export function packageFile(root: string, relative: string): string {
+  const checkout = join(root, relative);
+  return existsSync(checkout) ? checkout : join(root, "bin", "lib", relative);
+}
+
+/**
+ * The `package.json` of a dependency, found the way Node resolves it: the
+ * first `node_modules/<name>` up from the package root (a checkout nests it,
+ * an install — npm or pnpm — puts it beside this package).
+ */
+export function dependencyManifest(root: string, name: string): string {
+  let dir = root;
+  for (;;) {
+    const candidate = join(dir, "node_modules", ...name.split("/"), "package.json");
+    if (existsSync(candidate)) return candidate;
+    const up = dirname(dir);
+    if (up === dir) throw new Error(`${PACKAGE_NAME}: ${name} is not installed beside this package`);
+    dir = up;
+  }
+}
