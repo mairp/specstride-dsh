@@ -109,7 +109,15 @@ const COMMAND_ROSTER_UNVERIFIED =
                  
                     
       
+     
+                                                                     
+                                                                       
+     
+                                
   
+
+/** The shim's bin name: the skills run every `specstride <cmd>` as `specstride-dsh <cmd>`. */
+export const SHIM_BIN = "specstride-dsh";
 
                                          
                                                                           
@@ -264,7 +272,7 @@ export function dshDoctorChecks(engineVersion        )                         {
       severityRule: (observed) => {
         const o = observed                                                 ;
         if (o === undefined || o === null) return SEVERITY_WHEN_NOT_OBSERVED;
-        if (o.missing.length > 0) return "fail";
+        if (o.missing.length > 0 || o.shimOnPath === false) return "fail";
         if (o.stale.length > 0 || o.shadowed.length > 0) return "warn";
         return "ok";
       },
@@ -433,6 +441,12 @@ function cliUsable(observed         )          {
 
 /** The printed fix: the check's own, except where the observation names more. */
 function fixOf(check             , observed         )         {
+  if (check.id === "host.skills-installed" && typeof observed === "object" && observed !== null) {
+    const o = observed                              ;
+    if (o.missing.length === 0 && o.shimOnPath === false) {
+      return `the skills run \`${SHIM_BIN} <cmd>\`, which is not on PATH: install this package globally (npm install -g <the packed @specstride/host-dsh tarball>) so its ${SHIM_BIN} bin is on the PATH dsh runs with`;
+    }
+  }
   if (check.id === "host.cli-found" && typeof observed === "object" && observed !== null) {
     const o = observed                                              ;
     if (!o.answersProtocol) {
@@ -452,6 +466,7 @@ function describeObservation(id        , observed         )         {
     const parts           = [];
     if (o.missing.length > 0) parts.push(`missing: ${o.missing.join(", ")}`);
     if (o.stale.length > 0) parts.push(`stale: ${o.stale.join(", ")}`);
+    if (o.shimOnPath === false) parts.push(`${SHIM_BIN} not on PATH`);
     for (const shadow of o.shadowed) {
       parts.push(
         `shadowed: ${shadow.name} (version ${shadow.version}) under ${shadow.root}`,
@@ -745,7 +760,23 @@ export function skillsInstalledObservation(
       stale.push(name);
     }
   }
-  return { missing, stale, shadowed };
+  return { missing, stale, shadowed, shimOnPath: onPath(SHIM_BIN, env) };
+}
+
+/** Whether `name` is an executable file in a directory of `env.PATH`. */
+function onPath(name        , env                   )          {
+  for (const dir of (env.PATH ?? "").split(":")) {
+    if (dir === "") continue;
+    const path = join(dir, name);
+    try {
+      if (!statSync(path).isFile()) continue;
+      accessSync(path, fsConstants.X_OK);
+      return true;
+    } catch {
+      // not here
+    }
+  }
+  return false;
 }
 
 /** The `metadata.version` of a rendered SKILL.md, or null. */

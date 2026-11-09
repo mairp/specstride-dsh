@@ -74,13 +74,17 @@ reach is the one on the unit's PATH unless `SPECSTRIDE_BIN` says otherwise.
 Install the engine of the pin and point the unit at it:
 
 ```sh
+npm pack && npm install -g ./specstride-host-dsh-<v>.tgz   # puts specstride-dsh (the shim the skills call) and specstride-host-dsh on PATH
 npm install -g ./vendor/core/specstride-0.1.0.tgz   # the pinned engine; again after every core pin
 # /etc/systemd/system/dsh-web.service.d/specstride-engine.conf
 [Service]
 Environment=SPECSTRIDE_BIN=/usr/lib/node_modules/specstride/bin/specstride
 ```
 
-then `systemctl daemon-reload && systemctl restart dsh-web`. Runs launched
+then `systemctl daemon-reload && systemctl restart dsh-web`. The skills run
+every engine verb as `specstride-dsh <cmd>`: without the host package on the
+unit's PATH they stop at "specstride-dsh: command not found", and
+`host.skills-installed` fails naming it. Runs launched
 from dsh sessions inherit the unit's environment, so `SPECSTRIDE_LIMITS=off`
 set the same way lifts every time and count limit of those runs.
 
