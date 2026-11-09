@@ -1,0 +1,32 @@
+# Mergify configuration for specstride-dsh.
+#
+# Auto-merge on green CI: PRs targeting `main` that have at least one
+# approved review, no failed status checks, and a passing `test` job (the
+# single job defined in .github/workflows/ci.yml) are queued for merge.
+#
+# The queue uses the `merge` method to match the repository's history, which
+# is composed of merge commits (see PRs #6 and #7 on origin/main).
+# `dismiss_stale_reviews` revokes approvals when new commits are pushed, so
+# every merged PR always carries a current approval.
+
+queue_rules:
+  - name: default
+    conditions:
+      - base=main
+      - "#approved-reviews-by>=1"
+      - check-success=test
+      - "#status-failed=0"
+
+pull_request_rules:
+  - name: automatic merge on green CI
+    conditions:
+      - base=main
+      - "#approved-reviews-by>=1"
+      - check-success=test
+      - "#status-failed=0"
+    actions:
+      queue:
+        method: merge
+        name: default
+      dismiss_stale_reviews:
+        post: true
