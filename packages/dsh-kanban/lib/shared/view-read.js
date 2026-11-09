@@ -15,7 +15,91 @@ import { SCHEMA_ID, MAJOR_RANGE } from "./generated/contract-values.js";
                
                  
                                                                 
+                                                                      
+                 
+                                                                                       
+                       
   
+
+/* ------------------------- the card detail (F121-FR-022..024) ------------------------- */
+
+                                                                                                                                      
+                           
+                   
+                
+                   
+                    
+                  
+                      
+                    
+                   
+  
+                             
+                  
+              
+                        
+                          
+                           
+                         
+                  
+                 
+                 
+  
+                           
+               
+               
+                       
+                     
+                        
+                         
+                         
+                       
+  
+                            
+                 
+                        
+                
+                    
+                         
+                      
+                     
+                   
+  
+/** Phase scope, approval, evidence, attempts and usage of ONE phase. Every string ≤ 240 bytes, every list bounded. */
+                           
+                      
+                                 
+                            
+                    
+                     
+                      
+                       
+                  
+                       
+                                                                                                               
+                                                   
+                            
+                          
+                                                                                         
+                                                                      
+                            
+                                                                         
+                   
+  
+/** What is shared by every card of a feature: the live run, its agents, launches, log tail, usage and limits. */
+                             
+                                                                                                                                          
+                        
+                            
+                           
+                          
+                
+                            
+               
+                 
+                           
+  
+
                                                                                                                                     
                           
                 
@@ -44,6 +128,10 @@ import { SCHEMA_ID, MAJOR_RANGE } from "./generated/contract-values.js";
                                                      
                                               
                                
+                                                                                                
+                                                 
+                                                              
+               
   
 
                                                                                       

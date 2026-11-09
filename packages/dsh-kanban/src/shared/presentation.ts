@@ -48,3 +48,73 @@ export function budgetPresentation(level: string): Presentation {
   const known = BUDGET_TABLE[level];
   return known ?? { glyph: UNKNOWN_GLYPH, label: level, grayscale: BUDGET_PRESENTATION_UNKNOWN.grayscale };
 }
+
+/* ------------------------- card detail sets (F121-FR-022, F121-FR-024) ------------------------- */
+
+/**
+ * The plugin-local presentation of the detail panel's states: a task's tick and
+ * critic verdict, a process's liveness, an attempt's or launch's outcome. Same
+ * three channels as the closed sets above, pairwise distinct glyph, label and
+ * grayscale (at least 24 apart within a set); an unknown member keeps its raw
+ * value as the label and the glyph `?`.
+ */
+export const TASK_PRESENTATION: Readonly<Record<string, Presentation>> = {
+  done: { glyph: "✓", label: "done", grayscale: 232 },
+  met: { glyph: "◆", label: "critic: met", grayscale: 200 },
+  open: { glyph: "○", label: "open", grayscale: 160 },
+  unmet: { glyph: "✗", label: "critic: unmet", grayscale: 112 },
+};
+export const TASK_PRESENTATION_UNKNOWN: Presentation = { glyph: UNKNOWN_GLYPH, label: "unknown", grayscale: 88 };
+
+export const ALIVE_PRESENTATION: Readonly<Record<string, Presentation>> = {
+  alive: { glyph: "●", label: "alive", grayscale: 232 },
+  unknown: { glyph: "◌", label: "not observable", grayscale: 176 },
+  gone: { glyph: "○", label: "gone", grayscale: 120 },
+};
+
+export const OUTCOME_PRESENTATION: Readonly<Record<string, Presentation>> = {
+  approved: { glyph: "✓", label: "approved", grayscale: 232 },
+  open: { glyph: "▶", label: "in progress", grayscale: 184 },
+  rejected: { glyph: "✗", label: "rejected", grayscale: 136 },
+  ended: { glyph: "■", label: "ended", grayscale: 112 },
+  interrupted: { glyph: "‖", label: "interrupted", grayscale: 88 },
+};
+export const OUTCOME_PRESENTATION_UNKNOWN: Presentation = { glyph: UNKNOWN_GLYPH, label: "unknown", grayscale: 64 };
+
+export const LAUNCH_PRESENTATION: Readonly<Record<string, Presentation>> = {
+  running: { glyph: "▶", label: "running", grayscale: 208 },
+  completed: { glyph: "✓", label: "completed", grayscale: 184 },
+  exited: { glyph: "■", label: "exited", grayscale: 160 },
+  stopped: { glyph: "⏸", label: "stopped", grayscale: 136 },
+  signalled: { glyph: "‖", label: "stopped by a signal", grayscale: 112 },
+  failed: { glyph: "✗", label: "failed", grayscale: 88 },
+  lost: { glyph: "⚠", label: "lost (no exit record)", grayscale: 64 },
+};
+export const LAUNCH_PRESENTATION_UNKNOWN: Presentation = { glyph: UNKNOWN_GLYPH, label: "unknown", grayscale: 232 };
+
+/** Every detail set with its unknown member, for the build's grayscale rules and the distinctness test. */
+export const DETAIL_SETS: Readonly<Record<string, { members: Readonly<Record<string, Presentation>>; unknown: Presentation }>> = {
+  task: { members: TASK_PRESENTATION, unknown: TASK_PRESENTATION_UNKNOWN },
+  alive: { members: ALIVE_PRESENTATION, unknown: { glyph: UNKNOWN_GLYPH, label: "unknown", grayscale: 64 } },
+  outcome: { members: OUTCOME_PRESENTATION, unknown: OUTCOME_PRESENTATION_UNKNOWN },
+  launch: { members: LAUNCH_PRESENTATION, unknown: LAUNCH_PRESENTATION_UNKNOWN },
+};
+
+const lookup = (set: keyof typeof DETAIL_SETS, member: string): Presentation => {
+  const s = DETAIL_SETS[set] as { members: Readonly<Record<string, Presentation>>; unknown: Presentation };
+  return s.members[member] ?? { glyph: UNKNOWN_GLYPH, label: member, grayscale: s.unknown.grayscale };
+};
+
+export function taskPresentation(member: string): Presentation {
+  return lookup("task", member);
+}
+export function outcomePresentation(member: string): Presentation {
+  return lookup("outcome", member);
+}
+export function launchPresentation(member: string): Presentation {
+  return lookup("launch", member);
+}
+/** A process's liveness: true → alive, false → gone, null → not observable. */
+export function aliveLabel(alive: boolean | null): Presentation {
+  return lookup("alive", alive === null ? "unknown" : alive ? "alive" : "gone");
+}

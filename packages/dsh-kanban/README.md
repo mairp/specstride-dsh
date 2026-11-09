@@ -64,18 +64,71 @@ Tests install only into a temporary `DSH_HOME`, never into a real one.
   `bad-request`. The client resolves everything it cannot read into the one
   unavailable line naming `/specstride-doctor`.
 - Exactly two CLI verbs, both read-only, both with their own time limit and
-  no process left behind; the half writes no file and holds no state but the
-  newest view per open page.
+  no process left behind; the half writes no file. When the engine answers
+  `unavailable` for a workspace (no engine, or one without the `kanban` verbs —
+  the pinned 0.1.0), the half does not ask it again for 60 s and answers from
+  the workspace reader straight away, instead of spawning two failing CLI calls
+  on every 5 s poll. Beside the newest view per open page it holds only that
+  bounded per-workspace memo and a per-file summary memo of dsh session
+  records (below).
 - The workspace is resolved server-side from the conversation's session
   (`ctx.sessions.get(id)?.header.cwd`, else the persisted headers) and the
   CLI runs with that directory as its working directory; no workspace means
   `no-run` with zero CLI calls.
 
+## The workspace reader and the card detail (F121-FR-022 to F121-FR-024)
+
+When no engine answers, the server half builds the `specstride.view/1` itself
+from files a Specstride workspace already holds (`src/server/workspace-view.ts`,
+`run-detail.ts`, `dsh-sessions.ts`). Its inputs are a closed list, read-only:
+
+| Input | What it gives |
+|---|---|
+| `specs/<f>/tasks.md` | phases, and per phase the goal, independent test, checkpoint, tasks (ticks, `[P]`, `[USn]`) and files |
+| `.specstride/{events.jsonl,features/<f>/gates,features/<f>/evidence}` | the bash engine's runs and approvals; the evidence file's name and size (never its text) |
+| `.specstride/launches/launch-*/{launch,supervision,runtime.status}.json`, `runtime.log` | every launch of a feature (reason, state, exit or signal), the last log lines |
+| `.specstride/{active,features/<f>/runs/run-launch-*/lease.json}` | the launch owner's pid and start, to tell a running launch from a lost one |
+| `~/.specstride/workspaces/<id>/` (and the XDG form) | the TS engine's runs (`runs/*/events.jsonl`), `procs.json`, and per feature `approvals/`, `bound/`, `ledger.json`, `micro/`, critic feedback |
+| `/proc/<pid>/{stat,cmdline}`, `/proc/stat` | whether a recorded process is alive **and** is the recorded one (start time within 1 s), its harness, profile and model flags |
+| `~/.dsh/sessions/<cwd-slug>/session-*/session.jsonl.zstd`, parallel worker roots named after the feature's runs | tokens in/out, model calls, retries, rate limits and back-off per phase; the live proposer's step and last tool |
+
+**Reconciliation.** The run that speaks for a feature is the newest run with a
+registry entry that is alive (pid and start time verified); else the newest
+run. `loop.json` is never consulted: the engine writes it once and leaves it on
+every later run, which is how the board used to keep showing the first run
+after a relaunch. A run joins the launch of its feature created just before it
+(the engine writes no id join; the gap is under a second), unless that launch
+had already ended. A run whose processes are all gone while its launch is not
+running is ended: `paused` when the launch was stopped by a signal, `failed`
+with one attention item when the launch vanished without an exit record.
+
+**The detail.** Every phase card of a started feature carries an optional
+`detail` (scope, approval, evidence, attempts across every run, counters, micro
+units, usage), and the view an optional `featureDetails[<f>]` (the live run,
+its agents, launches, log tail, usage, cost and limits). A card with a detail is
+a button: click, Enter or Space opens a panel under the board, a second click,
+Close or Escape closes it and gives the focus back. Both fields are additive —
+the client's acceptance and the engine's schema ignore what they do not know —
+and outside the lanes: the detail derives no lane. Every string is cut to 240
+bytes with control characters removed, every list is bounded with an omitted
+count, and no absolute path, prompt, reply, tool argument, command line,
+signature or key leaves the server. Live facts (the pass, the step, the alive
+pids, the launch states) are part of the reader's change signature, so the
+panel refreshes on the 5 s poll while an agent works.
+
+**What the files cannot say.** The pinned engine writes no event naming the
+critic or the verifier while they run, and no cost or usage event under dsh:
+the panel says "not observable" / "not reported by dsh (tokens only)" instead of
+guessing. Critic and diagnostician calls run in anonymous temporary directories
+and are not attributed to a feature. Upstream row **U-10** asks the engine to
+emit `run.started` (feature, launch id), the role and model of every call, and
+`usage.reported`, and to carry the detail in its own `status --json`.
+
 ## Threat answers (engine roadmap row 121-kanban-ui, annex X §X.9)
 
 | Threat | Answer here |
 |---|---|
-| T-38 — a viewer that reads more than the read model | Two read verbs only; no file read beyond the session's cwd (F121-FR-018) |
+| T-38 — a viewer that reads more than the read model | Two read verbs only on the engine path; the workspace reader opens only the closed input list above, read-only and bounded, and sends counts, names and states — never file contents, prompts or paths (F121-FR-018, F121-FR-023, F121-FR-024) |
 | T-39 — a viewer that writes engine state | GET only, one exact route, no upgrade/fallback route, no verb that writes (F121-FR-015) |
 | T-40 — a viewer reachable from the network | The route exists only on a `127.0.0.1` web server (F121-FR-016) |
 | T-41 — a request for another run | One token per page load, bound to one run id (F121-FR-017) |
@@ -89,6 +142,11 @@ Tests install only into a temporary `DSH_HOME`, never into a real one.
 - **U-8** (open): the pinned CLI 0.1.0 exits 70 for `status --json` on a
   workspace with state (`VerbNotMountedError`). Every automated test uses a
   stub CLI; only the live probe below needs the real verb.
+- **U-10** (open): the engine should emit `run.started` with the feature and
+  launch id, the role and model of every agent call (`proposer_start`,
+  `critic.started`, `verdict.recorded`), and `usage.reported`; and carry the
+  card detail (`cards[].detail`) in its own `status --json`, so the reader's
+  file reading can retire.
 - **U-9** (open): the engine's golden views are not in any pinned package.
   `packages/dsh-kanban/scripts/parity-goldens.ts` is wired to run the parity
   of T012 over a directory of `specstride.view/1` files — a person runs it on

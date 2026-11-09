@@ -42,6 +42,8 @@ export type PollerOptions = {
   stale: (text: string) => void;
   /** A one-line message (refusal, unavailable) shown without a board. */
   message?: (text: string) => void;
+  /** A good answer arrived: any staleness line shown before is void now. */
+  fresh?: () => void;
   limitMs?: number;
   /** The token of this page load, when the pane already knows it (R5). */
   token?: string | null;
@@ -102,6 +104,7 @@ export function startPoller(options: PollerOptions): Poller {
         if (token !== null) cursor = token;
         options.render(value.view as Record<string, unknown>);
         lastGoodAt = Date.now();
+        options.fresh?.();
         resetBackoff();
         schedule(POLL_MS);
         return;
@@ -109,6 +112,7 @@ export function startPoller(options: PollerOptions): Poller {
       case "unchanged": {
         if (token !== null) cursor = token;
         lastGoodAt = Date.now();
+        options.fresh?.();
         resetBackoff();
         schedule(POLL_MS);
         return;
@@ -116,6 +120,7 @@ export function startPoller(options: PollerOptions): Poller {
       case "no-run": {
         cursor = null;
         lastGoodAt = Date.now();
+        options.fresh?.();
         resetBackoff();
         schedule(POLL_MS);
         return;
@@ -235,10 +240,13 @@ export function startPanePoller(
   options: {
     sessionId: string;
     timers: Timers;
-    render: (tree: TreeNode, react: Reactish | undefined) => void;
+    render: (tree: TreeNode, react: Reactish | undefined, view: Record<string, unknown>) => void;
     stale: (text: string) => void;
     message: (text: string) => void;
+    fresh?: () => void;
     token?: string | null;
+    /** The card whose detail is open, read at every render (F121-FR-022). */
+    selected?: () => string | null;
   },
   reactOf: () => Reactish | undefined,
 ): Pane {
@@ -246,9 +254,10 @@ export function startPanePoller(
     sessionId: options.sessionId,
     timers: options.timers,
     fetch: (url, init) => fetch(url, init) as Promise<{ json: () => Promise<Answer> }>,
-    render: (view) => options.render(boardTree(view as never), reactOf()),
+    render: (view) => options.render(boardTree(view as never, { selectedId: options.selected?.() ?? null }), reactOf(), view),
     stale: options.stale,
     message: options.message,
+    ...(options.fresh === undefined ? {} : { fresh: options.fresh }),
     token: options.token,
   });
 }

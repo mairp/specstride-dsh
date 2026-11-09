@@ -15,7 +15,91 @@ export type ViewCard = {
   lane: string;
   ruleId: string;
   flags: { dead?: boolean; stale?: boolean; yielded?: boolean };
+  /** The card's one-line title (the workspace reader's), optional. */
+  title?: string;
+  /** The click-through detail of a phase card (F121-FR-022), optional and additive. */
+  detail?: PhaseDetail;
 };
+
+/* ------------------------- the card detail (F121-FR-022..024) ------------------------- */
+
+export type DetailTask = { id: string; text: string; done: boolean; parallel: boolean; story: string | null; verdict: string | null };
+export type DetailUsage = {
+  sessions: number;
+  calls: number;
+  tokensIn: number;
+  tokensOut: number;
+  retries: number;
+  rateLimited: number;
+  backoffMs: number;
+  models: string[];
+};
+export type DetailAttempt = {
+  attempt: number;
+  run: string;
+  launch: string | null;
+  strategy: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  outcome: string;
+  passes: number;
+  errors: number;
+};
+export type DetailAgent = {
+  role: string;
+  what: string;
+  since: string | null;
+  pid: number | null;
+  alive: boolean | null;
+  harness: string | null;
+  profile: string | null;
+  model: string | null;
+};
+export type DetailLaunch = {
+  launch: string;
+  reason: string | null;
+  state: string;
+  at: string | null;
+  endedAt: string | null;
+  exit: string | null;
+  run: string | null;
+  current: boolean;
+};
+/** Phase scope, approval, evidence, attempts and usage of ONE phase. Every string ≤ 240 bytes, every list bounded. */
+export type PhaseDetail = {
+  goal: string | null;
+  independentTest: string | null;
+  checkpoint: string | null;
+  tasksDone: number;
+  tasksTotal: number;
+  tasks: DetailTask[];
+  tasksOmitted: number;
+  files: string[];
+  filesOmitted: number;
+  approval: { at: string | null; attempt: string | null; critic: string | null; commit: string | null } | null;
+  evidence: { name: string; bytes: number } | null;
+  attempts: DetailAttempt[];
+  attemptsOmitted: number;
+  counters: { rejects: number; errors: number; noProgress: number; caps: number } | null;
+  units: { total: number; unresolved: number; cycles: number } | null;
+  usage: DetailUsage | null;
+  /** True for the phase the feature's newest run is in (or ended in). */
+  current: boolean;
+};
+/** What is shared by every card of a feature: the live run, its agents, launches, log tail, usage and limits. */
+export type FeatureDetail = {
+  run: { id: string; launch: string | null; state: string; phase: number | null; startedAt: string | null; lastAt: string | null } | null;
+  agents: DetailAgent[];
+  agentsNote: string | null;
+  launches: DetailLaunch[];
+  launchesOmitted: number;
+  log: string[];
+  usage: DetailUsage | null;
+  cost: string;
+  limits: string;
+  usageNote: string | null;
+};
+
 export type ViewAttention = { kind: string; key: string; since: string | null; oneLine: string; need: string | null; next: string };
 export type ViewBudget = {
   scope: string;
@@ -44,6 +128,10 @@ export type ReadView = {
   phases: { number: number; title: string | null }[];
   cursor: { offset: number; lastSeq: number };
   signature: { token: string };
+  /** The reader's per-feature detail, keyed by feature (F121-FR-022), optional and additive. */
+  featureDetails?: Record<string, FeatureDetail>;
+  /** The server's clock when the view was built, optional. */
+  now?: string;
 };
 
 export type AcceptResult = { ok: true; view: ReadView } | { ok: false; line: string };
