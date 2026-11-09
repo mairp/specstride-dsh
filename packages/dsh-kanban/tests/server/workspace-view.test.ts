@@ -163,6 +163,28 @@ test("TS engine: a run that died in phase 1 with a failed pipeline record → ph
   assert.ok(acceptView(view).ok);
 });
 
+test("TS engine: a relaunch the stale loop.json does not name speaks for the feature; another feature's run does not", () => {
+  const files = tsFiles(
+    [
+      tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 1, title: "Setup" }),
+      tsev("iter_error", "2026-11-08T11:00:01.000Z", { subtype: "agent_error" }),
+    ],
+    {
+      [`${CTRL}/runs/run-2/events.jsonl`]: [
+        tsev("phase.started", "2026-11-08T12:00:00.000Z", { phase: 2, title: "Core" }),
+        tsev("iter_start", "2026-11-08T12:00:00.100Z", { iter: 1 }),
+      ].join("\n"),
+      [`${CTRL}/runs/run-3/events.jsonl`]: tsev("phase.started", "2026-11-08T13:00:00.000Z", { phase: 1, title: "Another feature's setup" }),
+      [`${CTRL}/features/f1/approvals/phase-1.json`]: "{}",
+    },
+  );
+  const view = readTs(files);
+  assert.equal(lanesOf(view, "f1"), "1:approved 2:proposing 3:queued");
+  assert.equal(view.state, "running");
+  assert.equal(view.attention.length, 0);
+  assert.ok(acceptView(view).ok);
+});
+
 test("TS engine: a live run in the critic is reviewing; an approval record and phase.ended approved approve", () => {
   const files = tsFiles(
     [

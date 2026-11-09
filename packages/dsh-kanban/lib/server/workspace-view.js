@@ -370,8 +370,36 @@ function pipelineEnd(fs        , cwd        , feature        )                  
 
                                                                                                                                    
 
+const RUN_ID = /^[\w.-]+$/;
+
+/**
+ * The run that speaks for a feature under one control root. `loop.json` names the run
+ * the engine selected its strategy in, but the engine writes it once and leaves it on
+ * later runs, so a relaunch would stay invisible behind it. The newest run whose
+ * `phase.started` titles all belong to this feature wins instead (run directories
+ * carry no feature name; the titles come from the feature's own `tasks.md`); the
+ * `loop.json` run is the fallback when no run qualifies.
+ */
+function featureRunEvents(fs        , root        , loopRunId               , titles                     )                                             {
+  let best                                                         = null;
+  let fallback                                             = null;
+  for (const runId of fs.list(join(root, "runs"))) {
+    if (!RUN_ID.test(runId)) continue;
+    const path = join(root, "runs", runId, "events.jsonl");
+    const events = parseTsEvents(tailText(fs.read(path)));
+    if (events.length === 0) continue;
+    if (runId === loopRunId) fallback = { path, events };
+    const started = events.filter((e) => e.type === "phase.started");
+    const ours = started.length > 0 && started.every((e) => typeof e.data.title === "string" && titles.has(e.data.title.trim()));
+    if (!ours) continue;
+    const at = events.reduce((m, e) => (e.at !== null && e.at > m ? e.at : m), 0);
+    if (best === null || at > best.at) best = { path, events, at };
+  }
+  return best ?? fallback;
+}
+
 /** Everything the TS engine recorded for one feature. */
-function tsFeature(fs        , cwd        , roots                   , feature        )            {
+function tsFeature(fs        , cwd        , roots                   , feature        , titles                     )            {
   const approvals = new Set        ();
   let run                   = null;
   let size = 0;
@@ -387,18 +415,15 @@ function tsFeature(fs        , cwd        , roots                   , feature   
     let runId                = null;
     try {
       const id = loop === null ? null : (JSON.parse(loop)                       ).runId;
-      runId = typeof id === "string" && /^[\w.-]+$/.test(id) ? id : null;
+      runId = typeof id === "string" && RUN_ID.test(id) ? id : null;
     } catch {
       runId = null;
     }
-    if (runId !== null) {
-      const path = join(root, "runs", runId, "events.jsonl");
-      const events = parseTsEvents(tailText(fs.read(path)));
-      if (events.length > 0) {
-        run = tsRunFacts(events);
-        size += fs.size(path);
-        count += events.length;
-      }
+    const chosen = featureRunEvents(fs, root, runId, titles);
+    if (chosen !== null) {
+      run = tsRunFacts(chosen.events);
+      size += fs.size(chosen.path);
+      count += chosen.events.length;
     }
     break;
   }
@@ -480,7 +505,7 @@ export function readWorkspaceView(cwd        , fs         = nodeFs, now         
       const match = /^GATE(\d+)-APPROVED$/.exec(name);
       if (match !== null) gates.add(Number.parseInt(match[1]          , 10));
     }
-    const ts = tsFeature(fs, cwd, roots, feature);
+    const ts = tsFeature(fs, cwd, roots, feature, new Set(phases.map((p) => p.title)));
     for (const n of ts.approvals) gates.add(n);
     tsSize += ts.size;
     tsCount += ts.count;
