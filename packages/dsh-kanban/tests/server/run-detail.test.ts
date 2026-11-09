@@ -358,3 +358,12 @@ test("PT-121-023: a launch whose waiter exited 0 after a failed stage is failed,
   assert.match(view.attention[0]!.oneLine, /run ended failed in phase 2 \(Core\) — exit:124/);
   assert.equal(view.cards.find((c) => c.phase === 2)!.detail!.current, true, "the phase the run ended in is marked");
 });
+
+test("PT-121-022: a launch row keeps its launch reason beside the pipeline's exit reason", () => {
+  const files = relaunchFiles({
+    "/w/.specstride/launches/launch-two/runtime.status.json": JSON.stringify({ exitCode: 0, signal: null, endedAtMs: Date.parse("2026-11-09T02:16:15.175Z") }),
+    "/w/.specstride/state/pipeline/f1/runs/launch-two/state.json": JSON.stringify({ state: "failed", exit_reason: "exit:124" }),
+  });
+  const last = read(files, fakeProc({})).featureDetails!.f1!.launches.at(-1)!;
+  assert.deepEqual([last.reason, last.state, last.exit], ["first", "failed", "exit:124"]);
+});
