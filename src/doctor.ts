@@ -137,7 +137,7 @@ export const KANBAN_PLUGIN_NAME = "@specstride/dsh-kanban";
 
 
 export type DshObservations = {
-  readonly "cli-found"?: boolean;
+  readonly "cli-found"?: CliObservation;
   readonly protocol?: number | null;
   readonly "dsh-version"?: string | null;
   readonly "skills-installed"?: SkillsInstalledObservation;
@@ -228,8 +228,11 @@ export function dshDoctorChecks(engineVersion: string): readonly DoctorCheck[] {
     // 1 — the only launch check of the doctor.
     dshCheck({
       id: "host.cli-found",
+      // A `specstride` that does not answer `--protocol` is not a Specstride
+      // CLI the shim can use: every launch refuses with `found=none`, so the
+      // one launch check fails too, and its fix names that executable.
       severityRule: (observed) =>
-        unobserved(observed, () => (observed === true ? "ok" : "fail")),
+        unobserved(observed, () => (cliUsable(observed) ? "ok" : "fail")),
       lb: true,
       order: 1,
       probe: (injected) => Promise.resolve(injected["cli-found"]),
@@ -392,7 +395,7 @@ export async function runDoctorFindings(
       severity,
       lb: check.lb,
       message: check.messageTemplate.replace("{state}", state),
-      fix: check.fixHint,
+      fix: fixOf(check, observed),
       evidence: evidenceOf(check.id, observed),
     });
   }
@@ -413,7 +416,35 @@ function exitForMeaning(phrase: string): number {
   return exit.code;
 }
 
+/**
+ * `host.cli-found` is observed as a boolean (injected, or no executable at
+ * all) or as the executable the shim would run and whether it answers
+ * `--protocol`.
+ */
+export type CliObservation = boolean | { path: string; answersProtocol: boolean };
+
+function cliUsable(observed: unknown): boolean {
+  if (typeof observed === "boolean") return observed;
+  const o = observed as { path?: unknown; answersProtocol?: unknown };
+  return typeof o.path === "string" && o.answersProtocol === true;
+}
+
+/** The printed fix: the check's own, except where the observation names more. */
+function fixOf(check: DoctorCheck, observed: unknown): string {
+  if (check.id === "host.cli-found" && typeof observed === "object" && observed !== null) {
+    const o = observed as { path: string; answersProtocol: boolean };
+    if (!o.answersProtocol) {
+      return `${o.path} answers no --protocol (no protocol-speaking Specstride engine): set SPECSTRIDE_BIN to the engine of the pin, or install it with ${check.fixHint}`;
+    }
+  }
+  return check.fixHint;
+}
+
 function describeObservation(id: string, observed: unknown): string {
+  if (id === "host.cli-found") {
+    const o = observed as { path: string; answersProtocol: boolean };
+    return o.answersProtocol ? `found at ${o.path}` : `not found (${o.path} answers no --protocol)`;
+  }
   if (id === "host.skills-installed") {
     const o = observed as SkillsInstalledObservation;
     const parts: string[] = [];
@@ -615,7 +646,7 @@ export async function collectObservations(
   });
 
   const observations: {
-    "cli-found"?: boolean;
+    "cli-found"?: CliObservation;
     protocol?: number | null;
     "dsh-version"?: string | null;
     "skills-installed"?: SkillsInstalledObservation;
@@ -623,11 +654,12 @@ export async function collectObservations(
     "permission-mode"?: PermissionModeObservation;
   } = {};
 
-  observations["cli-found"] = resolution.path !== null;
   if (resolution.path !== null) {
     const stdout = await tryExec(exec, resolution.path, ["--protocol"]);
     observations.protocol = stdout === null ? null : readProtocol(stdout);
+    observations["cli-found"] = { path: resolution.path, answersProtocol: observations.protocol !== null };
   } else {
+    observations["cli-found"] = false;
     observations.protocol = null; // unprobeable
   }
 
@@ -684,7 +716,7 @@ export function skillsInstalledObservation(
   const nonEmpty = (value: string | undefined): string | null =>
     value !== undefined && value !== "" ? value : null;
   const projectRoot = nonEmpty(env.PROJECT_ROOT) ?? cwd;
-  const dshHome = nonEmpty(env.DSH_HOME);
+  const dshHome = dshHomeOf(env);
   const home = nonEmpty(env.HOME);
   const roots: string[] = [
     join(projectRoot, ".dsh", "skills"),
@@ -733,11 +765,21 @@ function skillVersion(path: string): string | null {
  * read (unverified, HF row) — "started" is never assumed, only reported
  * from the server half's own line when a log surface exists.
  */
+/**
+ * dsh's home: `DSH_HOME` when set, else dsh's own default `~/.dsh` (dsh
+ * 0.1.0-rc.8: `dsh web` with no `DSH_HOME` loads `~/.dsh/profiles/web`).
+ */
+export function dshHomeOf(env: NodeJS.ProcessEnv): string | null {
+  if (env.DSH_HOME !== undefined && env.DSH_HOME !== "") return env.DSH_HOME;
+  if (env.HOME !== undefined && env.HOME !== "") return join(env.HOME, ".dsh");
+  return null;
+}
+
 export function kanbanPluginObservation(
   env: NodeJS.ProcessEnv,
 ): KanbanPluginObservation {
-  const home = env.DSH_HOME ?? "";
-  const manifestPath = home
+  const home = dshHomeOf(env);
+  const manifestPath = home !== null
     ? join(home, "profiles", "web", "package.json")
     : null;
   if (manifestPath === null) {
@@ -761,7 +803,8 @@ export function kanbanPluginObservation(
   return {
     installed: true,
     spec,
-    exact: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/.test(spec.trim()),
+    // An exact version, or a `file:` tarball (one fixed artifact, not a range).
+    exact: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/.test(spec.trim()) || /^file:.+\.tgz$/.test(spec.trim()),
     serverHalf: "unknown",
   };
 }
