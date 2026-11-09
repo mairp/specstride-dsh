@@ -374,7 +374,7 @@ export function pickRun(runs                      )                   {
                          
                      
                                                                        
-                         
+                             
   
 
 /** Every launch of the workspace (`.specstride/launches/launch-*`), oldest first. */
@@ -424,7 +424,7 @@ export function readLaunches(fs          , cwd        , proc          )         
       relaunches: Array.isArray(supervision.relaunches) ? supervision.relaunches.length : 0,
       stopRequested: supervision.stopRequested !== null && supervision.stopRequested !== undefined && supervision.stopRequested !== false,
       log: fs.exists(join(dir, name, "runtime.log")) ? join(dir, name, "runtime.log") : null,
-      reason: reason === null ? null : capText(reason, 60),
+      exitReason: reason === null ? null : capText(reason, 60),
     });
   }
   return out.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));

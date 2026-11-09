@@ -511,7 +511,7 @@ function tsFeature(fs        , cwd        , roots                   , feature   
         ? "no process of the run is alive"
         : launch.state === "signalled" ? `launch ${launch.launchId} stopped by ${launch.signal}`
         : launch.state === "lost" ? `launch ${launch.launchId} is gone (no exit record)`
-        : `launch ${launch.launchId} ${launch.state}${launch.reason ? ` (${launch.reason})` : launch.state === "exited" ? ` ${launch.exitCode ?? "?"}` : ""}`;
+        : `launch ${launch.launchId} ${launch.state}${launch.exitReason ? ` (${launch.exitReason})` : launch.state === "exited" ? ` ${launch.exitCode ?? "?"}` : ""}`;
       run.why = [run.why, how].filter((x) => x !== null && x !== undefined && x !== "").join(", ");
       if (launch?.log !== null && launch?.log !== undefined) run.log = launch.log;
     }
@@ -704,7 +704,7 @@ export function buildDetails(
       state: l.state,
       at: isoOf(l.createdAt),
       endedAt: isoOf(l.endedAt),
-      exit: l.signal !== null ? l.signal : l.reason !== null && l.reason !== undefined ? l.reason : l.exitCode === null ? null : `exit ${l.exitCode}`,
+      exit: l.signal !== null ? l.signal : l.exitReason !== null && l.exitReason !== undefined ? l.exitReason : l.exitCode === null ? null : `exit ${l.exitCode}`,
       run: runOf === undefined ? null : runOf.runId.slice(0, 12),
       current: runLaunch !== null && runLaunch.launchId === l.launchId,
     };
