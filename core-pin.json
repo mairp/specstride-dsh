@@ -1,12 +1,12 @@
 {
   "version": "0.1.0",
-  "coreCommit": "f14066cb24591c5ce46cf82f32283ee7e471fc68",
+  "coreCommit": "8b2a8bdcbb3deedc1d7744983578595940e8524d",
   "packages": [
     {
       "name": "specstride",
       "version": "0.1.0",
       "file": "specstride-0.1.0.tgz",
-      "sha256": "c029d2293b53e85ba6cca0c52cb18cb970117930abf0e5497e784ae73d978597"
+      "sha256": "e0c82c6d95665018be5b3b0e2fc1c4701d89c326e820e380ec29ce4bac03158d"
     },
     {
       "name": "@specstride/contracts",
