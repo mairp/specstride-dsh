@@ -1,18 +1,18 @@
 {
   "version": "0.1.0",
-  "coreCommit": "5c2e16ebf0e3c15bef4bc37c58d8cb6f75696789",
+  "coreCommit": "27e7d71b5fb742d40721c0534a6fcd2bbfe17f66",
   "packages": [
     {
       "name": "specstride",
       "version": "0.1.0",
       "file": "specstride-0.1.0.tgz",
-      "sha256": "ebc6be605a7e54cff22f4cc59be76f3720703558232423ac247dbfb31b2f314f"
+      "sha256": "88f720186415a622785a3ab747a72ac3d2e9cecee12f991acf2b748be92d748f"
     },
     {
       "name": "@specstride/contracts",
       "version": "0.1.0",
       "file": "specstride-contracts-0.1.0.tgz",
-      "sha256": "1aa2d0854e0c4c364b70134df1f59331d53b3a8b8c8b6db2c6cd4e01f067f86e"
+      "sha256": "f419ce2494d114c0e4b7942ffe5405110292df2ec54b8f0ef041b4e3f6a8e9c1"
     },
     {
       "name": "@specstride/host-kit",
