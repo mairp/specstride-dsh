@@ -207,6 +207,25 @@ test("TS engine: a live run in the critic is reviewing; an approval record and p
   assert.equal(lanesOf(approved, "f1"), "1:approved 2:reviewing 3:approved");
 });
 
+test("TS engine: an approval record for the phase a live run is re-working does not hide the live lane (issue #23)", () => {
+  // The engine voided the approval (its commit left the history) and re-opened
+  // the phase; the recorded approval must not pin the card to `approved` while
+  // the proposer of the live run works on it.
+  const files = tsFiles(
+    [
+      tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 2, title: "Core" }),
+      tsev("integrity.noted", "2026-11-08T11:00:00.100Z", { kind: "approval-invalid", phase: 2, failed: "tree" }),
+      tsev("attempt.started", "2026-11-08T11:00:00.200Z", { phase: 2, attempt: 2 }),
+      tsev("iter_start", "2026-11-08T11:00:00.300Z", { iter: 1 }),
+    ],
+    { [`${CTRL}/features/f1/approvals/phase-2.json`]: "{}" },
+  );
+  const view = readTs(files);
+  assert.equal(lanesOf(view, "f1"), "1:queued 2:proposing 3:queued");
+  assert.equal(view.state, "running");
+  assert.ok(acceptView(view).ok);
+});
+
 test("TS engine: phase.ended blocked → blocked; stopped pipeline → paused; the newer bash run wins over an older TS run", () => {
   const blocked = readTs(tsFiles([tsev("phase.started", "2026-11-08T11:00:00.000Z", { phase: 2 }), tsev("phase.ended", "2026-11-08T11:05:00.000Z", { phase: 2, outcome: "blocked" }), tsev("run.ended", "2026-11-08T11:05:01.000Z", { endCause: "normal" })]));
   assert.equal(lanesOf(blocked, "f1"), "1:queued 2:blocked 3:queued");
