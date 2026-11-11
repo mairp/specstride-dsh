@@ -239,15 +239,16 @@ export function featureCards(feature        , phases                  , approved
   return phases.map((phase) => {
     let lane       = "queued";
     let stale = false;
-    if (allApproved || approvedGates.has(phase.number) || run?.done.has(phase.number) === true || (phase.tasks > 0 && phase.ticked === phase.tasks)) {
+    if (run !== null && !run.ended && current === phase.number) {
+      // A live run re-working this phase speaks over any recorded approval: a
+      // re-opened phase (an approval-invalid void, a relaunch) must show its
+      // live lane, never the approval the run no longer honours.
+      lane = run.activity ?? "proposing";
+      stale = run.lastAt !== null && now - run.lastAt > STALE_AFTER_MS;
+    } else if (allApproved || approvedGates.has(phase.number) || run?.done.has(phase.number) === true || (phase.tasks > 0 && phase.ticked === phase.tasks)) {
       lane = "approved";
     } else if (run !== null && current === phase.number) {
-      if (!run.ended) {
-        lane = run.activity ?? "proposing";
-        stale = run.lastAt !== null && now - run.lastAt > STALE_AFTER_MS;
-      } else {
-        lane = run.endLane ?? endLane(run.outcome);
-      }
+      lane = run.endLane ?? endLane(run.outcome);
     }
     return {
       id: `${feature}#${phase.number}`,
