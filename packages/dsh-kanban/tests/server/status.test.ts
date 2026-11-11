@@ -10,11 +10,11 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach } from "node:test";
-import { answerSession } from "../../src/server/route.ts";
+import { answerSession, forgetEngines } from "../../src/server/route.ts";
 import { resolveShim, status } from "../../src/server/cli.ts";
 import { ensureStubPeer, readLog, stubShimPath } from "./helpers/stub-peer.ts";
 
@@ -88,4 +88,65 @@ test("a --protocol answer of 2 (exit 4) makes the route answer unavailable with 
   const calls = readLog(log);
   assert.equal(calls.length, 1, "only the protocol probe ran");
   assert.deepEqual(calls[0]!.argv, ["--protocol"]);
+});
+
+/* ------------------ the starved engine: the reader speaks (issue #23's sibling) ------------------ */
+
+const nowIso = () => new Date().toISOString();
+
+/** An engine board with no cards at all — what the lane stream's single `run.launched` yields. */
+const emptyBoard = {
+  ...view,
+  state: "idle",
+  display: "none",
+  cards: [],
+  lanes: (view.lanes as { lane: string; cards: unknown[] }[]).map((lane) => ({ ...lane, cards: [] })),
+};
+
+/** A real temp workspace whose bash lane shows a live proposer in phase 1. */
+function laneWorkspace(): string {
+  const dir = mkdtempSync(join(tmpdir(), "kanban-route-ws-"));
+  mkdirSync(join(dir, "specs", "f1"), { recursive: true });
+  mkdirSync(join(dir, ".specstride"), { recursive: true });
+  writeFileSync(join(dir, "specs", "f1", "tasks.md"), "## Phase 1: Setup\n- [ ] T001 a\n## Phase 2: Core\n- [ ] T002 b\n");
+  writeFileSync(
+    join(dir, ".specstride", "events.jsonl"),
+    [
+      { event: "run_start", feature: "f1", run_id: "r1", time: nowIso() },
+      { event: "phase_start", feature: "f1", run_id: "r1", phase: 1, time: nowIso() },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join("\n"),
+  );
+  return dir;
+}
+
+const ctxFor = (cwd: string) => ({ sessions: new Map([["s1", { header: { cwd } }]]), sessionPersistence: { list: () => [] } });
+
+test("an engine that answers an empty board does not shadow the workspace reader", async () => {
+  forgetEngines();
+  stub("view", { view: emptyBoard });
+  const ws = laneWorkspace();
+  const answer = await answerSession(ctxFor(ws) as never, "s1");
+  assert.equal(answer.body.answer, "view", "the reader's live view wins over the engine's empty board");
+  const v = answer.body.view as { state: string; cards: { id: string; lane: string }[] };
+  assert.equal(v.state, "running");
+  assert.ok(v.cards.some((card) => card.id === "f1#1" && card.lane === "proposing"), "the live phase is proposing");
+  // The workspace is pinned to the reader: the next answer makes no engine call.
+  const before = readLog(log).length;
+  const again = await answerSession(ctxFor(ws) as never, "s1");
+  assert.equal(again.body.answer, "view");
+  assert.equal(readLog(log).length, before, "no engine call while pinned");
+  rmSync(ws, { recursive: true, force: true });
+});
+
+test("a healthy engine (a board with cards) still speaks over the reader", async () => {
+  forgetEngines();
+  stub("view", { view });
+  const ws = laneWorkspace();
+  const answer = await answerSession(ctxFor(ws) as never, "s1");
+  assert.equal(answer.body.answer, "view");
+  assert.equal((answer.body.view as { runId?: string }).runId, view.runId, "the engine's own board is served");
+  assert.equal(readLog(log).length, 2, "the engine was called (probe + status)");
+  rmSync(ws, { recursive: true, force: true });
 });
