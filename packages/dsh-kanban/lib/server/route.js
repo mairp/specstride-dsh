@@ -59,20 +59,63 @@ const engineAbsent = new Map                ();
 export const ENGINE_RETRY_MS = 60_000;
 const ENGINE_MEMO_CAP = 64;
 
-/** For tests: forget which engines were absent. */
+/**
+ * Workspaces whose engine answered with an empty board while the workspace's
+ * own files speak for a live run (issue #23's sibling: under a dsh host the
+ * engine's lane stream only ever receives `run.launched`, so its board stays
+ * empty while the run works in the control root). The reader speaks for the
+ * workspace until the pin lapses or the files go quiet, so a starving engine
+ * never shadows the live lanes on every poll. Bounded like `engineAbsent`.
+ */
+const readerPinned = new Map                ();
+export const READER_PIN_MS = ENGINE_RETRY_MS;
+const READER_PIN_CAP = ENGINE_MEMO_CAP;
+
+/** For tests: forget which engines were absent and which workspaces are reader-pinned. */
 export function forgetEngines()       {
   engineAbsent.clear();
+  readerPinned.clear();
 }
 
 export async function answerSession(ctx         , sessionId        , cursor                , now         = Date.now())                 {
   const resolved = await resolveWorkspace(ctx, sessionId);
   if (!resolved.ok) return reply(200, { answer: "no-run" }); // resolution failure: 0 CLI calls (F121-FR-007)
+  // A reader-pinned workspace answers straight from the files (0 CLI calls).
+  const pinnedUntil = readerPinned.get(resolved.cwd);
+  if (pinnedUntil !== undefined) {
+    if (now >= pinnedUntil) readerPinned.delete(resolved.cwd);
+    else {
+      const reader = fromWorkspace(resolved.cwd, cursor ?? null);
+      if (reader.kind !== "unavailable") return mapResult(reader);
+      readerPinned.delete(resolved.cwd); // the files went quiet; ask the engine again
+    }
+  }
   const askAgainAt = engineAbsent.get(resolved.cwd);
   if (askAgainAt === undefined || now >= askAgainAt) {
     // With a cursor the cycle is the blocking wait, then at most one status (F121-FR-004).
     const engine = cursor ? await wait(resolved.cwd, cursor) : await status(resolved.cwd);
     if (engine.kind !== "unavailable") {
       engineAbsent.delete(resolved.cwd);
+      // An engine that answers with an empty board (`no-run`, or a view with
+      // no cards) while the workspace's own files speak is starved, not
+      // authoritative: the reader wins and the workspace is pinned to it.
+      const empty = engine.kind === "no-run" || (engine.kind === "view" && engine.view.cards.length === 0);
+      if (empty) {
+        const reader = fromWorkspace(resolved.cwd, cursor ?? null);
+        if (reader.kind === "view" || reader.kind === "unchanged") {
+          if (readerPinned.size >= READER_PIN_CAP && !readerPinned.has(resolved.cwd)) readerPinned.delete(readerPinned.keys().next().value          );
+          readerPinned.set(resolved.cwd, now + READER_PIN_MS);
+          return mapResult(reader);
+        }
+        // The files say nothing either: the engine's empty board is the truth.
+        return mapResult(engine);
+      }
+      // A foreign cursor (the reader issued it) can make the engine's wait
+      // answer `unchanged` while the files moved on: let the reader speak.
+      if (engine.kind === "unchanged") {
+        const reader = fromWorkspace(resolved.cwd, cursor ?? null);
+        if (reader.kind === "view") return mapResult(reader);
+      }
       return mapResult(engine);
     }
     if (engineAbsent.size >= ENGINE_MEMO_CAP && !engineAbsent.has(resolved.cwd)) engineAbsent.delete(engineAbsent.keys().next().value          );
